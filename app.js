@@ -128,7 +128,10 @@ document.addEventListener('DOMContentLoaded', () => {
             name: 'Multi-Service Deploy Release Gate',
             barrierKey: 'gate-deploy-v1',
             requiredSignalsCount: 2,
-            receivedSignals: ['service-auth-node'],
+            requiredSenders: ['auth-service', 'billing-service'],
+            timeoutMs: 300000,
+            timeoutAction: 'auto_abort',
+            receivedSignals: ['auth-service'],
             targetOnRelease: { type: 'http', url: 'https://api.mycompany.com/deploy/release' },
             status: 'locked',
             createdAt: new Date().toISOString(),
@@ -140,9 +143,12 @@ document.addEventListener('DOMContentLoaded', () => {
             id: 'gov-openai-metronome',
             name: 'OpenAI Batch Metronome Governor',
             cadenceMs: 2500,
+            currentCadenceMs: 2500,
+            maxBurst: 2,
+            enableAdaptiveBackoff: true,
             batchQueue: [
-              { type: 'http', url: 'https://api.openai.com/v1/embeddings' },
-              { type: 'http', url: 'https://api.openai.com/v1/embeddings' }
+              { type: 'http', url: 'https://api.openai.com/v1/embeddings', priority: 'high' },
+              { type: 'http', url: 'https://api.openai.com/v1/embeddings', priority: 'normal' }
             ],
             processedCount: 14,
             status: 'active',
@@ -411,6 +417,9 @@ document.addEventListener('DOMContentLoaded', () => {
       document.getElementById('barrier-name').value = barrier ? barrier.name : '';
       document.getElementById('barrier-key').value = barrier ? barrier.barrierKey : `gate-${Math.random().toString(36).substring(2, 7)}`;
       document.getElementById('barrier-count').value = barrier ? barrier.requiredSignalsCount : 2;
+      document.getElementById('barrier-senders').value = barrier?.requiredSenders ? barrier.requiredSenders.join(', ') : '';
+      document.getElementById('barrier-timeout').value = barrier?.timeoutMs || '';
+      document.getElementById('barrier-timeout-action').value = barrier?.timeoutAction || 'auto_abort';
       document.getElementById('barrier-url').value = barrier?.targetOnRelease?.url || 'https://api.mycompany.com/deploy/release';
       document.getElementById('modal-barrier').classList.add('active');
     }
@@ -424,6 +433,11 @@ document.addEventListener('DOMContentLoaded', () => {
       const name = document.getElementById('barrier-name').value.trim();
       const key = document.getElementById('barrier-key').value.trim();
       const count = parseInt(document.getElementById('barrier-count').value, 10) || 2;
+      const sendersStr = document.getElementById('barrier-senders').value.trim();
+      const requiredSenders = sendersStr ? sendersStr.split(',').map(s => s.trim()).filter(Boolean) : [];
+      const timeoutMsStr = document.getElementById('barrier-timeout').value.trim();
+      const timeoutMs = timeoutMsStr ? parseInt(timeoutMsStr, 10) : undefined;
+      const timeoutAction = document.getElementById('barrier-timeout-action').value;
       const url = document.getElementById('barrier-url').value.trim();
 
       const existing = this.state.barriers[id];
@@ -433,7 +447,11 @@ document.addEventListener('DOMContentLoaded', () => {
         name,
         barrierKey: key,
         requiredSignalsCount: count,
+        requiredSenders,
+        timeoutMs,
+        timeoutAction,
         receivedSignals: existing ? existing.receivedSignals : [],
+        receivedPayloads: existing ? existing.receivedPayloads : {},
         targetOnRelease: { type: 'http', url },
         status: existing ? existing.status : 'locked',
         createdAt: existing ? existing.createdAt : new Date().toISOString(),
@@ -453,6 +471,8 @@ document.addEventListener('DOMContentLoaded', () => {
       document.getElementById('governor-id').value = gov ? gov.id : '';
       document.getElementById('governor-name').value = gov ? gov.name : '';
       document.getElementById('governor-cadence').value = gov ? gov.cadenceMs : 2500;
+      document.getElementById('governor-burst').value = gov ? (gov.maxBurst || 1) : 1;
+      document.getElementById('governor-adaptive').checked = gov ? (gov.enableAdaptiveBackoff ?? true) : true;
       document.getElementById('modal-governor').classList.add('active');
     }
 
@@ -464,6 +484,8 @@ document.addEventListener('DOMContentLoaded', () => {
       const id = document.getElementById('governor-id').value || `gov-${Math.random().toString(36).substring(2, 9)}`;
       const name = document.getElementById('governor-name').value.trim();
       const cadenceMs = parseInt(document.getElementById('governor-cadence').value, 10) || 2500;
+      const maxBurst = parseInt(document.getElementById('governor-burst').value, 10) || 1;
+      const enableAdaptiveBackoff = document.getElementById('governor-adaptive').checked;
 
       const existing = this.state.governors[id];
 
@@ -471,6 +493,9 @@ document.addEventListener('DOMContentLoaded', () => {
         id,
         name,
         cadenceMs,
+        currentCadenceMs: cadenceMs,
+        maxBurst,
+        enableAdaptiveBackoff,
         batchQueue: existing ? existing.batchQueue : [{ type: 'http', url: 'https://api.mycompany.com/pacing-test' }],
         processedCount: existing ? existing.processedCount : 0,
         status: existing ? existing.status : 'active',
@@ -620,7 +645,7 @@ document.addEventListener('DOMContentLoaded', () => {
             <span class="card-badge badge-completed">${barriersCount} GATES</span>
           </div>
           <p class="detail-val" style="text-align: left; font-size: 0.88rem; color: var(--text-muted);">
-            Distributed time-barrier gates holding execution until signal threshold is met.
+            Distributed time-barrier gates with Whitelist Senders, Timeouts, and Aggregated Payloads.
           </p>
           <div class="card-actions">
             <button class="btn btn-sm btn-secondary nav-shortcut" data-target="barriers">Go to Barriers ➔</button>
@@ -633,7 +658,7 @@ document.addEventListener('DOMContentLoaded', () => {
             <span class="card-badge badge-completed">${govsCount} METRONOMES</span>
           </div>
           <p class="detail-val" style="text-align: left; font-size: 0.88rem; color: var(--text-muted);">
-            Metronome rate-pacing governor preventing HTTP 429 rate limit bans.
+            Metronome rate-pacing governor with Burst Bucket, Priority Queuing, and Adaptive 429 Backoff.
           </p>
           <div class="card-actions">
             <button class="btn btn-sm btn-secondary nav-shortcut" data-target="governors">Go to Governors ➔</button>
@@ -746,6 +771,9 @@ document.addEventListener('DOMContentLoaded', () => {
       barriers.forEach(b => {
         const card = document.createElement('div');
         card.className = 'card';
+        const sendersLabel = b.requiredSenders && b.requiredSenders.length > 0 ? b.requiredSenders.join(', ') : 'Any Sender';
+        const timeoutLabel = b.timeoutMs ? `${b.timeoutMs}ms (${b.timeoutAction || 'auto_abort'})` : 'No Timeout';
+
         card.innerHTML = `
           <div class="card-header">
             <span class="card-title">🔒 ${b.name}</span>
@@ -754,6 +782,8 @@ document.addEventListener('DOMContentLoaded', () => {
           <div class="card-details">
             <div class="detail-row"><span class="detail-label">Barrier Key:</span><span class="detail-val">${b.barrierKey}</span></div>
             <div class="detail-row"><span class="detail-label">Signals Threshold:</span><span class="detail-val">${b.receivedSignals.length} / ${b.requiredSignalsCount}</span></div>
+            <div class="detail-row"><span class="detail-label">Required Whitelist:</span><span class="detail-val">${sendersLabel}</span></div>
+            <div class="detail-row"><span class="detail-label">Timeout Policy:</span><span class="detail-val">${timeoutLabel}</span></div>
             <div class="detail-row"><span class="detail-label">Release Target:</span><span class="detail-val">${b.targetOnRelease?.url || 'Configured Target'}</span></div>
           </div>
           <div class="card-actions">
@@ -803,13 +833,17 @@ document.addEventListener('DOMContentLoaded', () => {
       govs.forEach(g => {
         const card = document.createElement('div');
         card.className = 'card';
+        const cadenceLabel = g.currentCadenceMs && g.currentCadenceMs !== g.cadenceMs ? `${g.currentCadenceMs}ms (Adaptive)` : `${g.cadenceMs}ms`;
+
         card.innerHTML = `
           <div class="card-header">
             <span class="card-title">⏱️ ${g.name}</span>
             <span class="card-badge badge-completed">${g.status.toUpperCase()}</span>
           </div>
           <div class="card-details">
-            <div class="detail-row"><span class="detail-label">Cadence Metronome:</span><span class="detail-val">${g.cadenceMs}ms</span></div>
+            <div class="detail-row"><span class="detail-label">Cadence Metronome:</span><span class="detail-val">${cadenceLabel}</span></div>
+            <div class="detail-row"><span class="detail-label">Max Burst Size:</span><span class="detail-val">${g.maxBurst || 1} items/pulse</span></div>
+            <div class="detail-row"><span class="detail-label">Adaptive 429 Backoff:</span><span class="detail-val">${g.enableAdaptiveBackoff ? 'ENABLED ⚡' : 'DISABLED'}</span></div>
             <div class="detail-row"><span class="detail-label">Items Processed:</span><span class="detail-val">${g.processedCount}</span></div>
             <div class="detail-row"><span class="detail-label">Remaining Queue:</span><span class="detail-val">${g.batchQueue.length} items</span></div>
           </div>
@@ -826,11 +860,14 @@ document.addEventListener('DOMContentLoaded', () => {
         b.addEventListener('click', () => {
           const g = this.state.governors[b.dataset.id];
           if (g) {
-            g.processedCount++;
-            if (g.batchQueue.length > 0) g.batchQueue.shift();
+            const burst = g.maxBurst || 1;
+            for (let i = 0; i < burst; i++) {
+              g.processedCount++;
+              if (g.batchQueue.length > 0) g.batchQueue.shift();
+            }
             this.saveLocalVaultState();
             this.renderAll();
-            this.showToast(`⚡ Metronome Pulse executed for "${g.name}".`, 'success');
+            this.showToast(`⚡ Metronome Pulse executed for "${g.name}" (${burst} items burst).`, 'success');
           }
         });
       });

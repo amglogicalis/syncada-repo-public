@@ -306,8 +306,28 @@
               <input type="text" id="barrier-key" placeholder="gate-deploy-v1" required class="form-input">
             </div>
             <div class="form-group">
-              <label>Required Signals Count Threshold</label>
+              <label>Required Signals Threshold</label>
               <input type="number" id="barrier-count" value="2" min="1" required class="form-input">
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label>Required Senders Whitelist (comma-separated)</label>
+            <input type="text" id="barrier-senders" placeholder="auth-service, billing-service" class="form-input">
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label>Timeout (ms)</label>
+              <input type="number" id="barrier-timeout" placeholder="300000 (5 mins)" class="form-input">
+            </div>
+            <div class="form-group">
+              <label>Timeout Action</label>
+              <select id="barrier-timeout-action" class="form-input">
+                <option value="auto_abort">Auto Abort Gate</option>
+                <option value="auto_release">Auto Release Gate</option>
+                <option value="trigger_fallback">Trigger Fallback</option>
+              </select>
             </div>
           </div>
 
@@ -341,9 +361,22 @@
             <input type="text" id="governor-name" placeholder="e.g. OpenAI Embeddings Metronome" required class="form-input">
           </div>
 
-          <div class="form-group">
-            <label>Cadence Metronome Interval (ms)</label>
-            <input type="number" id="governor-cadence" value="2500" min="100" required class="form-input">
+          <div class="form-row">
+            <div class="form-group">
+              <label>Cadence Metronome Interval (ms)</label>
+              <input type="number" id="governor-cadence" value="2500" min="100" required class="form-input">
+            </div>
+            <div class="form-group">
+              <label>Max Burst Bucket Size</label>
+              <input type="number" id="governor-burst" value="1" min="1" max="50" required class="form-input">
+            </div>
+          </div>
+
+          <div class="form-section">
+            <div class="checkbox-group">
+              <input type="checkbox" id="governor-adaptive" checked>
+              <label for="governor-adaptive"><strong>⚡ Enable Adaptive Backoff on HTTP 429 Rate Limits</strong></label>
+            </div>
           </div>
 
           <div class="modal-footer">
