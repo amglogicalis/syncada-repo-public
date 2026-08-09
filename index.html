@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Syncada Studio — Master Cron & Serverless Lambdas</title>
+  <link rel="icon" type="image/png" href="assets/logo_syncada.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div id="app" class="dashboard">
+    <!-- Sidebar Navigation -->
+    <aside class="sidebar">
+      <div class="brand">
+        <img src="assets/logo_syncada.png" alt="Syncada Logo" class="brand-logo">
+        <div class="brand-text">
+          <span class="brand-name">SYNCADA</span>
+          <span class="brand-sub">Master Cron & Lambdas</span>
+        </div>
+      </div>
+
+      <nav class="nav-menu">
+        <button class="nav-btn active" data-tab="tasks">
+          <span class="nav-icon">🌰</span>
+          <span class="nav-label">Nymph Tasks & Lambdas</span>
+        </button>
+        <button class="nav-btn" data-tab="barriers">
+          <span class="nav-icon">🔒</span>
+          <span class="nav-label">Stridulation Barriers</span>
+        </button>
+        <button class="nav-btn" data-tab="governors">
+          <span class="nav-icon">⏱️</span>
+          <span class="nav-label">Rate-Pulse Governor</span>
+        </button>
+        <button class="nav-btn" data-tab="exuvias">
+          <span class="nav-icon">📜</span>
+          <span class="nav-label">Exuvia Replay Timeline</span>
+        </button>
+      </nav>
+
+      <div class="sidebar-footer">
+        <span class="version-badge">v1.0.0 • $0 Infrastructure</span>
+      </div>
+    </aside>
+
+    <!-- Main Content Area -->
+    <main class="main-content">
+      <!-- Topbar -->
+      <header class="topbar">
+        <div class="topbar-title">
+          <h1 id="page-title">🌰 Nymph Tasks & Serverless Lambdas</h1>
+          <p id="page-sub">Master Cron automation, inline code execution & HA Fallback</p>
+        </div>
+
+        <div class="topbar-actions">
+          <div class="token-input-group">
+            <span class="token-icon">🔑</span>
+            <input type="password" id="gh-token" placeholder="GitHub PAT Token (ghp_...)" class="input-token">
+            <button id="btn-connect" class="btn btn-secondary">Connect</button>
+          </div>
+          <button id="btn-create-task" class="btn btn-primary">+ Create Nymph Task</button>
+          <button id="btn-refresh" class="btn btn-icon" title="Refresh Vault">🔄</button>
+        </div>
+      </header>
+
+      <!-- Stat Cards Grid -->
+      <section class="stats-grid">
+        <div class="stat-card">
+          <div class="stat-icon">🌰</div>
+          <div class="stat-info">
+            <span class="stat-value" id="stat-tasks-count">0</span>
+            <span class="stat-label">Active Nymph Tasks</span>
+          </div>
+        </div>
+
+        <div class="stat-card">
+          <div class="stat-icon">🛡️</div>
+          <div class="stat-info">
+            <span class="stat-value" id="stat-ha-count">0</span>
+            <span class="stat-label">HA Matrix Protected</span>
+          </div>
+        </div>
+
+        <div class="stat-card">
+          <div class="stat-icon">🧬</div>
+          <div class="stat-info">
+            <span class="stat-value" id="stat-diff-count">0</span>
+            <span class="stat-label">Diff-Aware Filtered</span>
+          </div>
+        </div>
+
+        <div class="stat-card">
+          <div class="stat-icon">📜</div>
+          <div class="stat-info">
+            <span class="stat-value" id="stat-exuvia-count">0</span>
+            <span class="stat-label">Exuvia Snapshots Logged</span>
+          </div>
+        </div>
+      </section>
+
+      <!-- Tab 1: Tasks & Lambdas -->
+      <section id="tab-tasks" class="tab-pane active">
+        <div class="pane-header">
+          <h2>Registered Nymph Tasks</h2>
+          <span class="pulse-indicator">🟢 Tymbal Engine Active</span>
+        </div>
+        <div id="tasks-grid" class="cards-grid">
+          <!-- Populated dynamically via JS -->
+        </div>
+      </section>
+
+      <!-- Tab 2: Stridulation Barriers -->
+      <section id="tab-barriers" class="tab-pane">
+        <div class="pane-header">
+          <h2>🔒 Stridulation Barrier Sync Gates</h2>
+          <button id="btn-create-barrier" class="btn btn-secondary">+ New Barrier Gate</button>
+        </div>
+        <div id="barriers-grid" class="cards-grid">
+          <!-- Populated dynamically via JS -->
+        </div>
+      </section>
+
+      <!-- Tab 3: Rate-Pulse Governor -->
+      <section id="tab-governors" class="tab-pane">
+        <div class="pane-header">
+          <h2>⏱️ Temporal Rate-Pulse Governor Metronome</h2>
+          <button id="btn-create-governor" class="btn btn-secondary">+ New Metronome Governor</button>
+        </div>
+        <div id="governors-grid" class="cards-grid">
+          <!-- Populated dynamically via JS -->
+        </div>
+      </section>
+
+      <!-- Tab 4: Exuvia Replay Timeline -->
+      <section id="tab-exuvias" class="tab-pane">
+        <div class="pane-header">
+          <h2>📜 Exuvia Forensic Time-Travel Replay</h2>
+          <span class="sub-text">1-Click Forensic Replay of past emergence runs</span>
+        </div>
+        <div id="exuvias-list" class="timeline-list">
+          <!-- Populated dynamically via JS -->
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <!-- Task Create/Edit Modal -->
+  <div id="modal-task" class="modal-overlay">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3 id="modal-task-title">Create Nymph Task / Serverless Lambda</h3>
+        <button class="modal-close" id="modal-task-close">&times;</button>
+      </div>
+      <div class="modal-body">
+        <form id="form-task">
+          <input type="hidden" id="task-id">
+
+          <div class="form-group">
+            <label>Task Name</label>
+            <input type="text" id="task-name" placeholder="e.g. Midnight Database Backup" required class="form-input">
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label>Category / Trigger Mode</label>
+              <select id="task-category" class="form-input">
+                <option value="chrono_lambda">Chrono-Lambda (Scheduled Cron)</option>
+                <option value="classic_lambda">Classic Lambda (On-Demand Webhook)</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Schedule Cron Expression</label>
+              <input type="text" id="task-schedule" placeholder="0 9 * * * (Every day 9:00 AM)" class="form-input">
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label>Primary Target Type</label>
+            <select id="task-target-type" class="form-input">
+              <option value="http">HTTP Webhook / REST Endpoint</option>
+              <option value="inline_code">Inline JS/TS Code Runlet ($0 Serverless Code)</option>
+            </select>
+          </div>
+
+          <div class="form-group" id="group-target-url">
+            <label>Primary Target HTTP URL</label>
+            <input type="url" id="task-target-url" placeholder="https://api.mycompany.com/cron" class="form-input">
+          </div>
+
+          <div class="form-group hidden" id="group-target-code">
+            <label>Inline JS/TS Code Runlet</label>
+            <textarea id="task-target-code" rows="4" placeholder="// Write inline JavaScript code to execute inside isolated VM&#10;const res = await fetch('https://api.github.com');&#10;return { status: res.status };" class="form-input code-input"></textarea>
+          </div>
+
+          <!-- HA Matrix Options -->
+          <div class="form-section">
+            <div class="checkbox-group">
+              <input type="checkbox" id="task-enable-ha" checked>
+              <label for="task-enable-ha"><strong>🛡️ Enable HA Fallback Matrix (Secondary Backup Target)</strong></label>
+            </div>
+
+            <div id="section-ha-options" class="ha-box">
+              <div class="form-row">
+                <div class="form-group">
+                  <label>Max Retries before Fallback</label>
+                  <input type="number" id="task-max-retries" value="3" min="1" max="5" class="form-input">
+                </div>
+                <div class="form-group">
+                  <label>Secondary Fallback URL</label>
+                  <input type="url" id="task-fallback-url" placeholder="https://backup-api.mycompany.com/cron" class="form-input">
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Diff-Aware Filter Options -->
+          <div class="form-section">
+            <div class="checkbox-group">
+              <input type="checkbox" id="task-enable-diff" checked>
+              <label for="task-enable-diff"><strong>🧬 Enable Diff-Aware Smart Emergence (Skip duplicate outputs)</strong></label>
+            </div>
+          </div>
+
+          <!-- Alerts Options -->
+          <div class="form-section">
+            <label><strong>🔔 Alert Notifications</strong></label>
+            <div class="form-row">
+              <div class="form-group">
+                <label>Webhook Alert URL (Discord/Slack/Custom)</label>
+                <input type="url" id="task-webhook-url" placeholder="https://discord.com/api/webhooks/..." class="form-input">
+              </div>
+              <div class="form-group">
+                <label>GitHub Issue Alert Repo (user/repo)</label>
+                <input type="text" id="task-github-repo" placeholder="owner/repository" class="form-input">
+              </div>
+            </div>
+          </div>
+
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" id="btn-cancel-task">Cancel</button>
+            <button type="submit" class="btn btn-primary">Save Task to NymphVault</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast Container -->
+  <div id="toast-container" class="toast-container"></div>
+
+  <script src="app.js"></script>
+</body>
+</html>
