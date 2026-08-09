@@ -203,13 +203,19 @@ body {
   gap: 8px;
 }
 
+.btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  transform: none !important;
+}
+
 .btn-primary {
   background: var(--primary);
   color: #000;
   box-shadow: 0 0 18px var(--primary-glow);
 }
 
-.btn-primary:hover {
+.btn-primary:hover:not(:disabled) {
   background: var(--primary-hover);
   transform: translateY(-1px);
 }
@@ -220,7 +226,7 @@ body {
   border: 1px solid var(--border);
 }
 
-.btn-secondary:hover {
+.btn-secondary:hover:not(:disabled) {
   background: rgba(255, 255, 255, 0.12);
 }
 
@@ -231,7 +237,7 @@ body {
   color: var(--text);
 }
 
-.btn-icon:hover {
+.btn-icon:hover:not(:disabled) {
   background: var(--bg-card-hover);
 }
 
@@ -246,8 +252,44 @@ body {
   border: 1px solid rgba(239, 68, 68, 0.4);
 }
 
-.btn-danger:hover {
+.btn-danger:hover:not(:disabled) {
   background: rgba(239, 68, 68, 0.35);
+}
+
+/* Locked State Banner */
+.locked-banner {
+  background: rgba(239, 68, 68, 0.08);
+  border: 1px solid rgba(239, 68, 68, 0.25);
+  border-radius: var(--radius);
+  padding: 24px;
+  margin-bottom: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+}
+
+.locked-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  max-width: 500px;
+}
+
+.locked-icon {
+  font-size: 2.2rem;
+}
+
+.locked-content h3 {
+  font-size: 1.15rem;
+  color: var(--text);
+}
+
+.locked-content p {
+  font-size: 0.88rem;
+  color: var(--text-muted);
+  line-height: 1.5;
 }
 
 /* Stats Grid */
@@ -322,6 +364,12 @@ body {
   border: 1px solid rgba(16, 185, 129, 0.3);
 }
 
+.pulse-indicator.locked {
+  color: var(--danger);
+  background: rgba(239, 68, 68, 0.12);
+  border-color: rgba(239, 68, 68, 0.3);
+}
+
 /* Cards Grid */
 .cards-grid {
   display: grid;
@@ -338,6 +386,8 @@ body {
   flex-direction: column;
   gap: 16px;
   transition: var(--transition);
+  min-width: 0;
+  overflow: hidden;
 }
 
 .card:hover {
@@ -351,12 +401,18 @@ body {
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
+  gap: 12px;
+  min-width: 0;
 }
 
 .card-title {
   font-size: 1.05rem;
   font-weight: 600;
   color: var(--text);
+  word-break: break-word;
+  overflow-wrap: anywhere;
+  flex: 1;
+  min-width: 0;
 }
 
 .card-badge {
@@ -365,6 +421,8 @@ body {
   padding: 4px 10px;
   border-radius: 12px;
   text-transform: uppercase;
+  flex-shrink: 0;
+  white-space: nowrap;
 }
 
 .badge-completed { background: rgba(16, 185, 129, 0.15); color: var(--success); border: 1px solid rgba(16, 185, 129, 0.3); }
@@ -375,25 +433,41 @@ body {
 .card-details {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 10px;
   font-size: 0.85rem;
   color: var(--text-muted);
+  min-width: 0;
 }
 
 .detail-row {
   display: flex;
   justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+  min-width: 0;
+}
+
+.detail-label {
+  color: var(--text-muted);
+  font-weight: 500;
+  flex-shrink: 0;
+  white-space: nowrap;
 }
 
 .detail-val {
   color: var(--text);
   font-weight: 500;
+  text-align: right;
+  word-break: break-all;
+  overflow-wrap: anywhere;
+  min-width: 0;
 }
 
 .card-actions {
   display: flex;
   gap: 10px;
   margin-top: 8px;
+  flex-wrap: wrap;
 }
 
 /* Timeline List */
@@ -411,22 +485,31 @@ body {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  gap: 16px;
+  min-width: 0;
 }
 
 .timeline-info {
   display: flex;
   flex-direction: column;
   gap: 4px;
+  min-width: 0;
+  flex: 1;
 }
 
 .timeline-title {
   font-weight: 600;
   font-size: 0.95rem;
+  word-break: break-word;
 }
 
 .timeline-meta {
   font-size: 0.8rem;
   color: var(--text-muted);
+}
+
+.timeline-snippet {
+  word-break: break-all;
 }
 
 /* Modals */
@@ -542,6 +625,16 @@ body {
   justify-content: flex-end;
   gap: 12px;
   margin-top: 10px;
+}
+
+.empty-state {
+  padding: 40px;
+  text-align: center;
+  color: var(--text-muted);
+  background: var(--bg-card);
+  border: 1px dashed var(--border);
+  border-radius: var(--radius);
+  font-size: 0.9rem;
 }
 
 .hidden {

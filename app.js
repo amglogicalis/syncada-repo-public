@@ -3,6 +3,7 @@ document.addEventListener('DOMContentLoaded', () => {
   class SyncadaConsole {
     constructor() {
       this.token = localStorage.getItem('syncada_gh_token') || '';
+      this.isConnected = false;
       this.state = {
         tasks: {},
         barriers: {},
@@ -16,12 +17,14 @@ document.addEventListener('DOMContentLoaded', () => {
       this.bindEvents();
       if (this.token) {
         document.getElementById('gh-token').value = this.token;
+        this.isConnected = true;
+        this.loadVaultData();
       }
-      this.loadSeedDataIfEmpty();
+      this.updateAuthUI();
       this.renderAll();
     }
 
-    loadSeedDataIfEmpty() {
+    loadVaultData() {
       const savedState = localStorage.getItem('syncada_vault_state');
       if (savedState) {
         try {
@@ -30,7 +33,7 @@ document.addEventListener('DOMContentLoaded', () => {
         } catch {}
       }
 
-      // Seed initial real-world simulation state
+      // Seed initial vault state for authenticated session
       this.state = {
         tasks: {
           'task-midnight-backup': {
@@ -142,13 +145,45 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     saveLocalVaultState() {
-      localStorage.setItem('syncada_vault_state', JSON.stringify(this.state));
+      if (this.isConnected) {
+        localStorage.setItem('syncada_vault_state', JSON.stringify(this.state));
+      }
+    }
+
+    updateAuthUI() {
+      const btnConnect = document.getElementById('btn-connect');
+      const btnDisconnect = document.getElementById('btn-disconnect');
+      const btnCreateTask = document.getElementById('btn-create-task');
+      const btnCreateBarrier = document.getElementById('btn-create-barrier');
+      const btnCreateGov = document.getElementById('btn-create-governor');
+      const lockedBanner = document.getElementById('locked-banner');
+      const tymbalStatus = document.getElementById('tymbal-status');
+
+      if (this.isConnected && this.token) {
+        btnConnect.classList.add('hidden');
+        btnDisconnect.classList.remove('hidden');
+        btnCreateTask.disabled = false;
+        if (btnCreateBarrier) btnCreateBarrier.disabled = false;
+        if (btnCreateGov) btnCreateGov.disabled = false;
+        lockedBanner.classList.add('hidden');
+        tymbalStatus.innerText = '🟢 Tymbal Engine Connected';
+        tymbalStatus.classList.remove('locked');
+      } else {
+        btnConnect.classList.remove('hidden');
+        btnDisconnect.classList.add('hidden');
+        btnCreateTask.disabled = true;
+        if (btnCreateBarrier) btnCreateBarrier.disabled = true;
+        if (btnCreateGov) btnCreateGov.disabled = true;
+        lockedBanner.classList.remove('hidden');
+        tymbalStatus.innerText = '🔒 Vault Locked (Token Required)';
+        tymbalStatus.classList.add('locked');
+      }
     }
 
     bindEvents() {
       // Tab Switching
       document.querySelectorAll('.nav-btn').forEach(btn => {
-        btn.addEventListener('click', (e) => {
+        btn.addEventListener('click', () => {
           document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
           document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
 
@@ -161,13 +196,37 @@ document.addEventListener('DOMContentLoaded', () => {
       // Token Connect
       document.getElementById('btn-connect').addEventListener('click', () => {
         const val = document.getElementById('gh-token').value.trim();
+        if (!val) {
+          this.showToast('Please enter a valid GitHub PAT token (ghp_...).', 'danger');
+          return;
+        }
         this.token = val;
+        this.isConnected = true;
         localStorage.setItem('syncada_gh_token', val);
-        this.showToast(val ? 'Connected to GitHub Engine!' : 'Disconnected Token.', 'info');
+        this.loadVaultData();
+        this.updateAuthUI();
+        this.renderAll();
+        this.showToast('Connected to GitHub NymphVault Engine!', 'success');
+      });
+
+      // Token Disconnect
+      document.getElementById('btn-disconnect').addEventListener('click', () => {
+        this.token = '';
+        this.isConnected = false;
+        localStorage.removeItem('syncada_gh_token');
+        document.getElementById('gh-token').value = '';
+        this.state = { tasks: {}, barriers: {}, governors: {}, exuvias: {} };
+        this.updateAuthUI();
+        this.renderAll();
+        this.showToast('Disconnected. Vault locked.', 'info');
       });
 
       // Refresh
       document.getElementById('btn-refresh').addEventListener('click', () => {
+        if (!this.isConnected) {
+          this.showToast('Connect with a GitHub PAT token first.', 'warning');
+          return;
+        }
         this.renderAll();
         this.showToast('Vault reloaded from state.', 'success');
       });
@@ -185,7 +244,10 @@ document.addEventListener('DOMContentLoaded', () => {
       });
 
       // Task Modal Open / Close
-      document.getElementById('btn-create-task').addEventListener('click', () => this.openTaskModal());
+      document.getElementById('btn-create-task').addEventListener('click', () => {
+        if (!this.isConnected) return;
+        this.openTaskModal();
+      });
       document.getElementById('modal-task-close').addEventListener('click', () => this.closeTaskModal());
       document.getElementById('btn-cancel-task').addEventListener('click', () => this.closeTaskModal());
 
@@ -278,6 +340,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     async runTaskNow(taskId) {
+      if (!this.isConnected) return;
       const task = this.state.tasks[taskId];
       if (!task) return;
 
@@ -325,6 +388,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     deleteTask(taskId) {
+      if (!this.isConnected) return;
       delete this.state.tasks[taskId];
       this.saveLocalVaultState();
       this.renderAll();
@@ -340,6 +404,14 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     renderStats() {
+      if (!this.isConnected) {
+        document.getElementById('stat-tasks-count').innerText = '🔒';
+        document.getElementById('stat-ha-count').innerText = '🔒';
+        document.getElementById('stat-diff-count').innerText = '🔒';
+        document.getElementById('stat-exuvia-count').innerText = '🔒';
+        return;
+      }
+
       const tasks = Object.values(this.state.tasks);
       const haCount = tasks.filter(t => t.enableHA).length;
       const diffCount = tasks.filter(t => t.enableDiffAware).length;
@@ -354,6 +426,11 @@ document.addEventListener('DOMContentLoaded', () => {
     renderTasks() {
       const grid = document.getElementById('tasks-grid');
       grid.innerHTML = '';
+
+      if (!this.isConnected) {
+        grid.innerHTML = '<div class="empty-state">🔒 Vault Locked — Please enter your GitHub PAT token above to connect and view Nymph Tasks.</div>';
+        return;
+      }
 
       const tasks = Object.values(this.state.tasks);
       if (tasks.length === 0) {
@@ -375,19 +452,19 @@ document.addEventListener('DOMContentLoaded', () => {
 
           <div class="card-details">
             <div class="detail-row">
-              <span>Schedule:</span>
+              <span class="detail-label">Schedule:</span>
               <span class="detail-val">${task.schedule || 'On-Demand (Classic Lambda)'}</span>
             </div>
             <div class="detail-row">
-              <span>Target:</span>
+              <span class="detail-label">Target:</span>
               <span class="detail-val">${task.primaryTarget.inlineCode ? '⚡ Inline Code Runlet' : (task.primaryTarget.url || 'HTTP Endpoint')}</span>
             </div>
             <div class="detail-row">
-              <span>HA Matrix:</span>
+              <span class="detail-label">HA Matrix:</span>
               <span class="detail-val">${task.enableHA ? `ENABLED (Max Retries: ${task.maxRetries})` : 'DISABLED'}</span>
             </div>
             <div class="detail-row">
-              <span>Diff-Aware Filter:</span>
+              <span class="detail-label">Diff-Aware Filter:</span>
               <span class="detail-val">${task.enableDiffAware ? 'ENABLED 🟢' : 'DISABLED'}</span>
             </div>
           </div>
@@ -411,6 +488,11 @@ document.addEventListener('DOMContentLoaded', () => {
       const grid = document.getElementById('barriers-grid');
       grid.innerHTML = '';
 
+      if (!this.isConnected) {
+        grid.innerHTML = '<div class="empty-state">🔒 Vault Locked — Please enter your GitHub PAT token above to connect and view Stridulation Barriers.</div>';
+        return;
+      }
+
       const barriers = Object.values(this.state.barriers);
       if (barriers.length === 0) {
         grid.innerHTML = '<div class="empty-state">No Stridulation Barriers created.</div>';
@@ -426,8 +508,8 @@ document.addEventListener('DOMContentLoaded', () => {
             <span class="card-badge ${b.status === 'released' ? 'badge-completed' : 'badge-hibernating'}">${b.status.toUpperCase()}</span>
           </div>
           <div class="card-details">
-            <div class="detail-row"><span>Barrier Key:</span><span class="detail-val">${b.barrierKey}</span></div>
-            <div class="detail-row"><span>Signals Threshold:</span><span class="detail-val">${b.receivedSignals.length} / ${b.requiredSignalsCount}</span></div>
+            <div class="detail-row"><span class="detail-label">Barrier Key:</span><span class="detail-val">${b.barrierKey}</span></div>
+            <div class="detail-row"><span class="detail-label">Signals Threshold:</span><span class="detail-val">${b.receivedSignals.length} / ${b.requiredSignalsCount}</span></div>
           </div>
           <div class="card-actions">
             <button class="btn btn-sm btn-secondary btn-signal" data-key="${b.barrierKey}">📡 Send Signal</button>
@@ -457,6 +539,11 @@ document.addEventListener('DOMContentLoaded', () => {
       const grid = document.getElementById('governors-grid');
       grid.innerHTML = '';
 
+      if (!this.isConnected) {
+        grid.innerHTML = '<div class="empty-state">🔒 Vault Locked — Please enter your GitHub PAT token above to connect and view Rate-Pulse Governors.</div>';
+        return;
+      }
+
       const govs = Object.values(this.state.governors);
       if (govs.length === 0) {
         grid.innerHTML = '<div class="empty-state">No Rate-Pulse Governors active.</div>';
@@ -472,9 +559,9 @@ document.addEventListener('DOMContentLoaded', () => {
             <span class="card-badge badge-completed">${g.status.toUpperCase()}</span>
           </div>
           <div class="card-details">
-            <div class="detail-row"><span>Cadence Metronome:</span><span class="detail-val">${g.cadenceMs}ms</span></div>
-            <div class="detail-row"><span>Items Processed:</span><span class="detail-val">${g.processedCount}</span></div>
-            <div class="detail-row"><span>Remaining Queue:</span><span class="detail-val">${g.batchQueue.length} items</span></div>
+            <div class="detail-row"><span class="detail-label">Cadence Metronome:</span><span class="detail-val">${g.cadenceMs}ms</span></div>
+            <div class="detail-row"><span class="detail-label">Items Processed:</span><span class="detail-val">${g.processedCount}</span></div>
+            <div class="detail-row"><span class="detail-label">Remaining Queue:</span><span class="detail-val">${g.batchQueue.length} items</span></div>
           </div>
           <div class="card-actions">
             <button class="btn btn-sm btn-primary btn-pulse-gov" data-id="${g.id}">⚡ Pulse Metronome</button>
@@ -500,6 +587,11 @@ document.addEventListener('DOMContentLoaded', () => {
     renderExuvias() {
       const list = document.getElementById('exuvias-list');
       list.innerHTML = '';
+
+      if (!this.isConnected) {
+        list.innerHTML = '<div class="empty-state">🔒 Vault Locked — Please enter your GitHub PAT token above to connect and view Exuvia Snapshots.</div>';
+        return;
+      }
 
       const exuvias = Object.values(this.state.exuvias).sort((a, b) => new Date(b.emergenceTimestamp) - new Date(a.emergenceTimestamp));
       if (exuvias.length === 0) {

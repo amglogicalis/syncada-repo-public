@@ -60,8 +60,9 @@
             <span class="token-icon">🔑</span>
             <input type="password" id="gh-token" placeholder="GitHub PAT Token (ghp_...)" class="input-token">
             <button id="btn-connect" class="btn btn-secondary">Connect</button>
+            <button id="btn-disconnect" class="btn btn-danger hidden">Disconnect</button>
           </div>
-          <button id="btn-create-task" class="btn btn-primary">+ Create Nymph Task</button>
+          <button id="btn-create-task" class="btn btn-primary" disabled>+ Create Nymph Task</button>
           <button id="btn-refresh" class="btn btn-icon" title="Refresh Vault">🔄</button>
         </div>
       </header>
@@ -71,7 +72,7 @@
         <div class="stat-card">
           <div class="stat-icon">🌰</div>
           <div class="stat-info">
-            <span class="stat-value" id="stat-tasks-count">0</span>
+            <span class="stat-value" id="stat-tasks-count">🔒</span>
             <span class="stat-label">Active Nymph Tasks</span>
           </div>
         </div>
@@ -79,7 +80,7 @@
         <div class="stat-card">
           <div class="stat-icon">🛡️</div>
           <div class="stat-info">
-            <span class="stat-value" id="stat-ha-count">0</span>
+            <span class="stat-value" id="stat-ha-count">🔒</span>
             <span class="stat-label">HA Matrix Protected</span>
           </div>
         </div>
@@ -87,7 +88,7 @@
         <div class="stat-card">
           <div class="stat-icon">🧬</div>
           <div class="stat-info">
-            <span class="stat-value" id="stat-diff-count">0</span>
+            <span class="stat-value" id="stat-diff-count">🔒</span>
             <span class="stat-label">Diff-Aware Filtered</span>
           </div>
         </div>
@@ -95,17 +96,26 @@
         <div class="stat-card">
           <div class="stat-icon">📜</div>
           <div class="stat-info">
-            <span class="stat-value" id="stat-exuvia-count">0</span>
+            <span class="stat-value" id="stat-exuvia-count">🔒</span>
             <span class="stat-label">Exuvia Snapshots Logged</span>
           </div>
         </div>
       </section>
 
+      <!-- Locked State Warning (Shown when disconnected) -->
+      <div id="locked-banner" class="locked-banner">
+        <div class="locked-content">
+          <span class="locked-icon">🔒</span>
+          <h3>GitHub Authentication Required</h3>
+          <p>Please enter your GitHub Personal Access Token (PAT) above and click <strong>Connect</strong> to access NymphVault, run Chrono-Lambdas, and manage tasks.</p>
+        </div>
+      </div>
+
       <!-- Tab 1: Tasks & Lambdas -->
       <section id="tab-tasks" class="tab-pane active">
         <div class="pane-header">
           <h2>Registered Nymph Tasks</h2>
-          <span class="pulse-indicator">🟢 Tymbal Engine Active</span>
+          <span class="pulse-indicator" id="tymbal-status">🔒 Vault Locked</span>
         </div>
         <div id="tasks-grid" class="cards-grid">
           <!-- Populated dynamically via JS -->
@@ -116,7 +126,7 @@
       <section id="tab-barriers" class="tab-pane">
         <div class="pane-header">
           <h2>🔒 Stridulation Barrier Sync Gates</h2>
-          <button id="btn-create-barrier" class="btn btn-secondary">+ New Barrier Gate</button>
+          <button id="btn-create-barrier" class="btn btn-secondary" disabled>+ New Barrier Gate</button>
         </div>
         <div id="barriers-grid" class="cards-grid">
           <!-- Populated dynamically via JS -->
@@ -127,7 +137,7 @@
       <section id="tab-governors" class="tab-pane">
         <div class="pane-header">
           <h2>⏱️ Temporal Rate-Pulse Governor Metronome</h2>
-          <button id="btn-create-governor" class="btn btn-secondary">+ New Metronome Governor</button>
+          <button id="btn-create-governor" class="btn btn-secondary" disabled>+ New Metronome Governor</button>
         </div>
         <div id="governors-grid" class="cards-grid">
           <!-- Populated dynamically via JS -->
