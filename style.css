@@ -642,6 +642,19 @@ body {
   box-shadow: 0 0 12px var(--primary-glow);
 }
 
+/* Custom Dropdown / Select Styling for Dark Mode */
+select.form-input {
+  background-color: #181824 !important;
+  color: #f1f5f9 !important;
+  cursor: pointer;
+}
+
+select.form-input option {
+  background-color: #181824 !important;
+  color: #f1f5f9 !important;
+  padding: 10px;
+}
+
 .code-input {
   font-family: 'Courier New', Courier, monospace;
   font-size: 0.85rem;
