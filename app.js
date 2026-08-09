@@ -3,6 +3,7 @@ document.addEventListener('DOMContentLoaded', () => {
   class SyncadaConsole {
     constructor() {
       this.token = localStorage.getItem('syncada_gh_token') || '';
+      this.userProfile = null;
       this.isConnected = false;
       this.state = {
         tasks: {},
@@ -13,15 +14,45 @@ document.addEventListener('DOMContentLoaded', () => {
       this.init();
     }
 
-    init() {
+    async init() {
       this.bindEvents();
       if (this.token) {
         document.getElementById('gh-token').value = this.token;
-        this.isConnected = true;
-        this.loadVaultData();
+        await this.connectWithToken(this.token, false);
+      } else {
+        this.updateAuthUI();
+        this.renderAll();
       }
+    }
+
+    async connectWithToken(token, showToastMsg = true) {
+      try {
+        const res = await fetch('https://api.github.com/user', {
+          headers: {
+            'Authorization': `token ${token}`,
+            'Accept': 'application/json'
+          }
+        });
+
+        if (res.ok) {
+          this.userProfile = await res.json();
+        } else {
+          this.userProfile = { login: 'authenticated_user', avatar_url: 'assets/logo_syncada.png' };
+        }
+      } catch {
+        this.userProfile = { login: 'authenticated_user', avatar_url: 'assets/logo_syncada.png' };
+      }
+
+      this.token = token;
+      this.isConnected = true;
+      localStorage.setItem('syncada_gh_token', token);
+      this.loadVaultData();
       this.updateAuthUI();
       this.renderAll();
+
+      if (showToastMsg) {
+        this.showToast(`Connected as @${this.userProfile.login}!`, 'success');
+      }
     }
 
     loadVaultData() {
@@ -39,7 +70,7 @@ document.addEventListener('DOMContentLoaded', () => {
           'task-midnight-backup': {
             id: 'task-midnight-backup',
             name: 'Midnight Database Backup & S3 Roll',
-            category: 'chrono_lambda',
+            category: 'chrono_shell',
             schedule: '0 0 * * *',
             primaryTarget: { type: 'http', url: 'https://api.mycompany.com/backup/run' },
             enableHA: true,
@@ -57,8 +88,8 @@ document.addEventListener('DOMContentLoaded', () => {
           },
           'task-price-scraper': {
             id: 'task-price-scraper',
-            name: 'Diff-Aware Price Scraper Lambda',
-            category: 'chrono_lambda',
+            name: 'Diff-Aware Price Scraper Nymph Shell',
+            category: 'chrono_shell',
             schedule: '*/15 * * * *',
             primaryTarget: {
               type: 'inline_code',
@@ -78,8 +109,8 @@ document.addEventListener('DOMContentLoaded', () => {
           },
           'task-instant-webhook': {
             id: 'task-instant-webhook',
-            name: 'On-Demand Classic Lambda Handler',
-            category: 'classic_lambda',
+            name: 'On-Demand Classic Nymph Shell Handler',
+            category: 'classic_shell',
             primaryTarget: {
               type: 'inline_code',
               inlineCode: 'return { status: "processed", event: "user_registered", timestamp: new Date().toISOString() };'
@@ -124,7 +155,7 @@ document.addEventListener('DOMContentLoaded', () => {
             id: 'exuvia-seed-1',
             taskId: 'task-midnight-backup',
             taskName: 'Midnight Database Backup & S3 Roll',
-            category: 'chrono_lambda',
+            category: 'chrono_shell',
             emergenceTimestamp: new Date(Date.now() - 3600000).toISOString(),
             durationMs: 142,
             httpStatus: 200,
@@ -151,8 +182,11 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     updateAuthUI() {
-      const btnConnect = document.getElementById('btn-connect');
-      const btnDisconnect = document.getElementById('btn-disconnect');
+      const authDisconnected = document.getElementById('auth-disconnected');
+      const authConnected = document.getElementById('auth-connected');
+      const userAvatar = document.getElementById('user-avatar');
+      const userHandle = document.getElementById('user-handle');
+
       const btnCreateTask = document.getElementById('btn-create-task');
       const btnCreateBarrier = document.getElementById('btn-create-barrier');
       const btnCreateGov = document.getElementById('btn-create-governor');
@@ -160,8 +194,12 @@ document.addEventListener('DOMContentLoaded', () => {
       const tymbalStatus = document.getElementById('tymbal-status');
 
       if (this.isConnected && this.token) {
-        btnConnect.classList.add('hidden');
-        btnDisconnect.classList.remove('hidden');
+        authDisconnected.classList.add('hidden');
+        authConnected.classList.remove('hidden');
+        if (this.userProfile) {
+          userAvatar.src = this.userProfile.avatar_url || 'assets/logo_syncada.png';
+          userHandle.innerText = `@${this.userProfile.login || 'user'}`;
+        }
         btnCreateTask.disabled = false;
         if (btnCreateBarrier) btnCreateBarrier.disabled = false;
         if (btnCreateGov) btnCreateGov.disabled = false;
@@ -169,8 +207,8 @@ document.addEventListener('DOMContentLoaded', () => {
         tymbalStatus.innerText = '🟢 Tymbal Engine Connected';
         tymbalStatus.classList.remove('locked');
       } else {
-        btnConnect.classList.remove('hidden');
-        btnDisconnect.classList.add('hidden');
+        authDisconnected.classList.remove('hidden');
+        authConnected.classList.add('hidden');
         btnCreateTask.disabled = true;
         if (btnCreateBarrier) btnCreateBarrier.disabled = true;
         if (btnCreateGov) btnCreateGov.disabled = true;
@@ -190,28 +228,32 @@ document.addEventListener('DOMContentLoaded', () => {
           const tabId = btn.getAttribute('data-tab');
           btn.classList.add('active');
           document.getElementById(`tab-${tabId}`).classList.add('active');
+
+          const titleMap = {
+            dashboard: '🎛️ Syncada Dashboard Overview',
+            tasks: '🌰 Nymph Tasks & Shells',
+            barriers: '🔒 Stridulation Barrier Sync Gates',
+            governors: '⏱️ Temporal Rate-Pulse Governor Metronome',
+            exuvias: '📜 Exuvia Forensic Time-Travel Replay'
+          };
+          document.getElementById('page-title').innerText = titleMap[tabId] || 'Syncada Studio';
         });
       });
 
       // Token Connect
-      document.getElementById('btn-connect').addEventListener('click', () => {
+      document.getElementById('btn-connect').addEventListener('click', async () => {
         const val = document.getElementById('gh-token').value.trim();
         if (!val) {
           this.showToast('Please enter a valid GitHub PAT token (ghp_...).', 'danger');
           return;
         }
-        this.token = val;
-        this.isConnected = true;
-        localStorage.setItem('syncada_gh_token', val);
-        this.loadVaultData();
-        this.updateAuthUI();
-        this.renderAll();
-        this.showToast('Connected to GitHub NymphVault Engine!', 'success');
+        await this.connectWithToken(val, true);
       });
 
       // Token Disconnect
       document.getElementById('btn-disconnect').addEventListener('click', () => {
         this.token = '';
+        this.userProfile = null;
         this.isConnected = false;
         localStorage.removeItem('syncada_gh_token');
         document.getElementById('gh-token').value = '';
@@ -250,19 +292,42 @@ document.addEventListener('DOMContentLoaded', () => {
       });
       document.getElementById('modal-task-close').addEventListener('click', () => this.closeTaskModal());
       document.getElementById('btn-cancel-task').addEventListener('click', () => this.closeTaskModal());
-
-      // Task Form Submit
       document.getElementById('form-task').addEventListener('submit', (e) => {
         e.preventDefault();
         this.saveTaskFromModal();
       });
+
+      // Barrier Modal Open / Close
+      document.getElementById('btn-create-barrier').addEventListener('click', () => {
+        if (!this.isConnected) return;
+        this.openBarrierModal();
+      });
+      document.getElementById('modal-barrier-close').addEventListener('click', () => this.closeBarrierModal());
+      document.getElementById('btn-cancel-barrier').addEventListener('click', () => this.closeBarrierModal());
+      document.getElementById('form-barrier').addEventListener('submit', (e) => {
+        e.preventDefault();
+        this.saveBarrierFromModal();
+      });
+
+      // Governor Modal Open / Close
+      document.getElementById('btn-create-governor').addEventListener('click', () => {
+        if (!this.isConnected) return;
+        this.openGovernorModal();
+      });
+      document.getElementById('modal-governor-close').addEventListener('click', () => this.closeGovernorModal());
+      document.getElementById('btn-cancel-governor').addEventListener('click', () => this.closeGovernorModal());
+      document.getElementById('form-governor').addEventListener('submit', (e) => {
+        e.preventDefault();
+        this.saveGovernorFromModal();
+      });
     }
 
+    // Task Modal Helpers
     openTaskModal(task = null) {
-      document.getElementById('modal-task-title').innerText = task ? 'Edit Nymph Task / Lambda' : 'Create Nymph Task / Serverless Lambda';
+      document.getElementById('modal-task-title').innerText = task ? 'Edit Nymph Task / Shell' : 'Create Nymph Task / Shell';
       document.getElementById('task-id').value = task ? task.id : '';
       document.getElementById('task-name').value = task ? task.name : '';
-      document.getElementById('task-category').value = task ? task.category : 'chrono_lambda';
+      document.getElementById('task-category').value = task ? task.category : 'chrono_shell';
       document.getElementById('task-schedule').value = task ? (task.schedule || '') : '';
 
       const targetType = task?.primaryTarget?.inlineCode ? 'inline_code' : 'http';
@@ -336,7 +401,88 @@ document.addEventListener('DOMContentLoaded', () => {
       this.saveLocalVaultState();
       this.closeTaskModal();
       this.renderAll();
-      this.showToast(`Task "${name}" saved to NymphVault!`, 'success');
+      this.showToast(`Nymph Task "${name}" saved to NymphVault!`, 'success');
+    }
+
+    // Barrier Modal Helpers
+    openBarrierModal(barrier = null) {
+      document.getElementById('modal-barrier-title').innerText = barrier ? 'Edit Stridulation Barrier Gate' : 'Create Stridulation Barrier Gate';
+      document.getElementById('barrier-id').value = barrier ? barrier.id : '';
+      document.getElementById('barrier-name').value = barrier ? barrier.name : '';
+      document.getElementById('barrier-key').value = barrier ? barrier.barrierKey : `gate-${Math.random().toString(36).substring(2, 7)}`;
+      document.getElementById('barrier-count').value = barrier ? barrier.requiredSignalsCount : 2;
+      document.getElementById('barrier-url').value = barrier?.targetOnRelease?.url || 'https://api.mycompany.com/deploy/release';
+      document.getElementById('modal-barrier').classList.add('active');
+    }
+
+    closeBarrierModal() {
+      document.getElementById('modal-barrier').classList.remove('active');
+    }
+
+    saveBarrierFromModal() {
+      const id = document.getElementById('barrier-id').value || `barrier-${Math.random().toString(36).substring(2, 9)}`;
+      const name = document.getElementById('barrier-name').value.trim();
+      const key = document.getElementById('barrier-key').value.trim();
+      const count = parseInt(document.getElementById('barrier-count').value, 10) || 2;
+      const url = document.getElementById('barrier-url').value.trim();
+
+      const existing = this.state.barriers[id];
+
+      const barrier = {
+        id,
+        name,
+        barrierKey: key,
+        requiredSignalsCount: count,
+        receivedSignals: existing ? existing.receivedSignals : [],
+        targetOnRelease: { type: 'http', url },
+        status: existing ? existing.status : 'locked',
+        createdAt: existing ? existing.createdAt : new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      };
+
+      this.state.barriers[id] = barrier;
+      this.saveLocalVaultState();
+      this.closeBarrierModal();
+      this.renderAll();
+      this.showToast(`Barrier "${name}" saved!`, 'success');
+    }
+
+    // Governor Modal Helpers
+    openGovernorModal(gov = null) {
+      document.getElementById('modal-governor-title').innerText = gov ? 'Edit Rate-Pulse Governor' : 'Create Rate-Pulse Governor';
+      document.getElementById('governor-id').value = gov ? gov.id : '';
+      document.getElementById('governor-name').value = gov ? gov.name : '';
+      document.getElementById('governor-cadence').value = gov ? gov.cadenceMs : 2500;
+      document.getElementById('modal-governor').classList.add('active');
+    }
+
+    closeGovernorModal() {
+      document.getElementById('modal-governor').classList.remove('active');
+    }
+
+    saveGovernorFromModal() {
+      const id = document.getElementById('governor-id').value || `gov-${Math.random().toString(36).substring(2, 9)}`;
+      const name = document.getElementById('governor-name').value.trim();
+      const cadenceMs = parseInt(document.getElementById('governor-cadence').value, 10) || 2500;
+
+      const existing = this.state.governors[id];
+
+      const gov = {
+        id,
+        name,
+        cadenceMs,
+        batchQueue: existing ? existing.batchQueue : [{ type: 'http', url: 'https://api.mycompany.com/pacing-test' }],
+        processedCount: existing ? existing.processedCount : 0,
+        status: existing ? existing.status : 'active',
+        createdAt: existing ? existing.createdAt : new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      };
+
+      this.state.governors[id] = gov;
+      this.saveLocalVaultState();
+      this.closeGovernorModal();
+      this.renderAll();
+      this.showToast(`Governor Metronome "${name}" saved!`, 'success');
     }
 
     async runTaskNow(taskId) {
@@ -344,7 +490,7 @@ document.addEventListener('DOMContentLoaded', () => {
       const task = this.state.tasks[taskId];
       if (!task) return;
 
-      this.showToast(`🥁 Tymbal Pulse: Executing task "${task.name}"...`, 'info');
+      this.showToast(`🥁 Tymbal Pulse: Executing Nymph Task "${task.name}"...`, 'info');
 
       const startTime = Date.now();
       let outputSnippet = 'Executed successfully.';
@@ -392,11 +538,28 @@ document.addEventListener('DOMContentLoaded', () => {
       delete this.state.tasks[taskId];
       this.saveLocalVaultState();
       this.renderAll();
-      this.showToast('Task deleted from NymphVault.', 'info');
+      this.showToast('Nymph Task deleted from NymphVault.', 'info');
+    }
+
+    deleteBarrier(barrierId) {
+      if (!this.isConnected) return;
+      delete this.state.barriers[barrierId];
+      this.saveLocalVaultState();
+      this.renderAll();
+      this.showToast('Barrier Gate deleted.', 'info');
+    }
+
+    deleteGovernor(govId) {
+      if (!this.isConnected) return;
+      delete this.state.governors[govId];
+      this.saveLocalVaultState();
+      this.renderAll();
+      this.showToast('Rate-Pulse Governor deleted.', 'info');
     }
 
     renderAll() {
       this.renderStats();
+      this.renderDashboardInventory();
       this.renderTasks();
       this.renderBarriers();
       this.renderGovernors();
@@ -423,6 +586,87 @@ document.addEventListener('DOMContentLoaded', () => {
       document.getElementById('stat-exuvia-count').innerText = exuviaCount;
     }
 
+    renderDashboardInventory() {
+      const container = document.getElementById('dashboard-inventory');
+      container.innerHTML = '';
+
+      if (!this.isConnected) {
+        container.innerHTML = '<div class="empty-state">🔒 Vault Locked — Please enter your GitHub PAT token above to connect and view your Inventory.</div>';
+        return;
+      }
+
+      const tasksCount = Object.keys(this.state.tasks).length;
+      const barriersCount = Object.keys(this.state.barriers).length;
+      const govsCount = Object.keys(this.state.governors).length;
+      const exuviaCount = Object.keys(this.state.exuvias).length;
+
+      container.innerHTML = `
+        <div class="card">
+          <div class="card-header">
+            <span class="card-title">🌰 Nymph Tasks & Shells</span>
+            <span class="card-badge badge-completed">${tasksCount} ACTIVE</span>
+          </div>
+          <p class="detail-val" style="text-align: left; font-size: 0.88rem; color: var(--text-muted);">
+            Manage your Chrono Nymph Shells ($0 Master Cron) and Classic Shells with HA Fallback & Diff-Aware filtering.
+          </p>
+          <div class="card-actions">
+            <button class="btn btn-sm btn-primary nav-shortcut" data-target="tasks">Go to Nymph Tasks ➔</button>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header">
+            <span class="card-title">🔒 Stridulation Barriers</span>
+            <span class="card-badge badge-completed">${barriersCount} GATES</span>
+          </div>
+          <p class="detail-val" style="text-align: left; font-size: 0.88rem; color: var(--text-muted);">
+            Distributed time-barrier gates holding execution until signal threshold is met.
+          </p>
+          <div class="card-actions">
+            <button class="btn btn-sm btn-secondary nav-shortcut" data-target="barriers">Go to Barriers ➔</button>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header">
+            <span class="card-title">⏱️ Rate-Pulse Governor</span>
+            <span class="card-badge badge-completed">${govsCount} METRONOMES</span>
+          </div>
+          <p class="detail-val" style="text-align: left; font-size: 0.88rem; color: var(--text-muted);">
+            Metronome rate-pacing governor preventing HTTP 429 rate limit bans.
+          </p>
+          <div class="card-actions">
+            <button class="btn btn-sm btn-secondary nav-shortcut" data-target="governors">Go to Governors ➔</button>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header">
+            <span class="card-title">📜 Exuvia Replay Timeline</span>
+            <span class="card-badge badge-completed">${exuviaCount} SNAPSHOTS</span>
+          </div>
+          <p class="detail-val" style="text-align: left; font-size: 0.88rem; color: var(--text-muted);">
+            Immutable execution receipts with 1-Click Forensic Time-Travel Replay.
+          </p>
+          <div class="card-actions">
+            <button class="btn btn-sm btn-secondary nav-shortcut" data-target="exuvias">View Timeline ➔</button>
+          </div>
+        </div>
+      `;
+
+      container.querySelectorAll('.nav-shortcut').forEach(b => {
+        b.addEventListener('click', () => {
+          const targetTab = b.dataset.target;
+          document.querySelectorAll('.nav-btn').forEach(btn => {
+            btn.classList.toggle('active', btn.dataset.tab === targetTab);
+          });
+          document.querySelectorAll('.tab-pane').forEach(p => {
+            p.classList.toggle('active', p.id === `tab-${targetTab}`);
+          });
+        });
+      });
+    }
+
     renderTasks() {
       const grid = document.getElementById('tasks-grid');
       grid.innerHTML = '';
@@ -434,7 +678,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
       const tasks = Object.values(this.state.tasks);
       if (tasks.length === 0) {
-        grid.innerHTML = '<div class="empty-state">No Nymph Tasks registered yet. Click "+ Create Nymph Task" to add your first Chrono-Lambda.</div>';
+        grid.innerHTML = '<div class="empty-state">No Nymph Tasks registered yet. Click "+ Create Nymph Task" to add your first Chrono Shell.</div>';
         return;
       }
 
@@ -453,7 +697,7 @@ document.addEventListener('DOMContentLoaded', () => {
           <div class="card-details">
             <div class="detail-row">
               <span class="detail-label">Schedule:</span>
-              <span class="detail-val">${task.schedule || 'On-Demand (Classic Lambda)'}</span>
+              <span class="detail-val">${task.schedule || 'On-Demand (Classic Nymph Shell)'}</span>
             </div>
             <div class="detail-row">
               <span class="detail-label">Target:</span>
@@ -471,8 +715,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
           <div class="card-actions">
             <button class="btn btn-sm btn-primary btn-run" data-id="${task.id}">🥁 Emerging Now</button>
-            <button class="btn btn-sm btn-secondary btn-edit" data-id="${task.id}">✏️ Edit</button>
-            <button class="btn btn-sm btn-danger btn-del" data-id="${task.id}">🗑️</button>
+            <button class="btn btn-sm btn-secondary btn-edit-task" data-id="${task.id}">✏️ Edit</button>
+            <button class="btn btn-sm btn-danger btn-del-task" data-id="${task.id}">🗑️</button>
           </div>
         `;
 
@@ -480,8 +724,8 @@ document.addEventListener('DOMContentLoaded', () => {
       });
 
       grid.querySelectorAll('.btn-run').forEach(b => b.addEventListener('click', () => this.runTaskNow(b.dataset.id)));
-      grid.querySelectorAll('.btn-edit').forEach(b => b.addEventListener('click', () => this.openTaskModal(this.state.tasks[b.dataset.id])));
-      grid.querySelectorAll('.btn-del').forEach(b => b.addEventListener('click', () => this.deleteTask(b.dataset.id)));
+      grid.querySelectorAll('.btn-edit-task').forEach(b => b.addEventListener('click', () => this.openTaskModal(this.state.tasks[b.dataset.id])));
+      grid.querySelectorAll('.btn-del-task').forEach(b => b.addEventListener('click', () => this.deleteTask(b.dataset.id)));
     }
 
     renderBarriers() {
@@ -495,7 +739,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
       const barriers = Object.values(this.state.barriers);
       if (barriers.length === 0) {
-        grid.innerHTML = '<div class="empty-state">No Stridulation Barriers created.</div>';
+        grid.innerHTML = '<div class="empty-state">No Stridulation Barriers created. Click "+ New Barrier Gate" to add one.</div>';
         return;
       }
 
@@ -510,9 +754,12 @@ document.addEventListener('DOMContentLoaded', () => {
           <div class="card-details">
             <div class="detail-row"><span class="detail-label">Barrier Key:</span><span class="detail-val">${b.barrierKey}</span></div>
             <div class="detail-row"><span class="detail-label">Signals Threshold:</span><span class="detail-val">${b.receivedSignals.length} / ${b.requiredSignalsCount}</span></div>
+            <div class="detail-row"><span class="detail-label">Release Target:</span><span class="detail-val">${b.targetOnRelease?.url || 'Configured Target'}</span></div>
           </div>
           <div class="card-actions">
             <button class="btn btn-sm btn-secondary btn-signal" data-key="${b.barrierKey}">📡 Send Signal</button>
+            <button class="btn btn-sm btn-secondary btn-edit-barrier" data-id="${b.id}">✏️ Edit</button>
+            <button class="btn btn-sm btn-danger btn-del-barrier" data-id="${b.id}">🗑️</button>
           </div>
         `;
         grid.appendChild(card);
@@ -533,6 +780,9 @@ document.addEventListener('DOMContentLoaded', () => {
           }
         });
       });
+
+      grid.querySelectorAll('.btn-edit-barrier').forEach(b => b.addEventListener('click', () => this.openBarrierModal(this.state.barriers[b.dataset.id])));
+      grid.querySelectorAll('.btn-del-barrier').forEach(b => b.addEventListener('click', () => this.deleteBarrier(b.dataset.id)));
     }
 
     renderGovernors() {
@@ -546,7 +796,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
       const govs = Object.values(this.state.governors);
       if (govs.length === 0) {
-        grid.innerHTML = '<div class="empty-state">No Rate-Pulse Governors active.</div>';
+        grid.innerHTML = '<div class="empty-state">No Rate-Pulse Governors active. Click "+ New Metronome Governor" to add one.</div>';
         return;
       }
 
@@ -565,6 +815,8 @@ document.addEventListener('DOMContentLoaded', () => {
           </div>
           <div class="card-actions">
             <button class="btn btn-sm btn-primary btn-pulse-gov" data-id="${g.id}">⚡ Pulse Metronome</button>
+            <button class="btn btn-sm btn-secondary btn-edit-gov" data-id="${g.id}">✏️ Edit</button>
+            <button class="btn btn-sm btn-danger btn-del-gov" data-id="${g.id}">🗑️</button>
           </div>
         `;
         grid.appendChild(card);
@@ -582,6 +834,9 @@ document.addEventListener('DOMContentLoaded', () => {
           }
         });
       });
+
+      grid.querySelectorAll('.btn-edit-gov').forEach(b => b.addEventListener('click', () => this.openGovernorModal(this.state.governors[b.dataset.id])));
+      grid.querySelectorAll('.btn-del-gov').forEach(b => b.addEventListener('click', () => this.deleteGovernor(b.dataset.id)));
     }
 
     renderExuvias() {

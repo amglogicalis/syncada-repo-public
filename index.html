@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Syncada Studio — Master Cron & Serverless Lambdas</title>
+  <title>Syncada Studio — Master Cron & Nymph Shells</title>
   <link rel="icon" type="image/png" href="assets/logo_syncada.png">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -18,14 +18,18 @@
         <img src="assets/logo_syncada.png" alt="Syncada Logo" class="brand-logo">
         <div class="brand-text">
           <span class="brand-name">SYNCADA</span>
-          <span class="brand-sub">Master Cron & Lambdas</span>
+          <span class="brand-sub">Master Cron & Nymph Shells</span>
         </div>
       </div>
 
       <nav class="nav-menu">
-        <button class="nav-btn active" data-tab="tasks">
+        <button class="nav-btn active" data-tab="dashboard">
+          <span class="nav-icon">🎛️</span>
+          <span class="nav-label">Dashboard Overview</span>
+        </button>
+        <button class="nav-btn" data-tab="tasks">
           <span class="nav-icon">🌰</span>
-          <span class="nav-label">Nymph Tasks & Lambdas</span>
+          <span class="nav-label">Nymph Tasks & Shells</span>
         </button>
         <button class="nav-btn" data-tab="barriers">
           <span class="nav-icon">🔒</span>
@@ -51,18 +55,28 @@
       <!-- Topbar -->
       <header class="topbar">
         <div class="topbar-title">
-          <h1 id="page-title">🌰 Nymph Tasks & Serverless Lambdas</h1>
+          <h1 id="page-title">🎛️ Syncada Dashboard Overview</h1>
           <p id="page-sub">Master Cron automation, inline code execution & HA Fallback</p>
         </div>
 
         <div class="topbar-actions">
-          <div class="token-input-group">
+          <!-- Disconnected Token Input Form -->
+          <div id="auth-disconnected" class="token-input-group">
             <span class="token-icon">🔑</span>
             <input type="password" id="gh-token" placeholder="GitHub PAT Token (ghp_...)" class="input-token">
             <button id="btn-connect" class="btn btn-secondary">Connect</button>
-            <button id="btn-disconnect" class="btn btn-danger hidden">Disconnect</button>
           </div>
-          <button id="btn-create-task" class="btn btn-primary" disabled>+ Create Nymph Task</button>
+
+          <!-- Connected GitHub User Profile Badge -->
+          <div id="auth-connected" class="user-profile-badge hidden">
+            <img id="user-avatar" src="assets/logo_syncada.png" alt="User Avatar" class="user-avatar">
+            <div class="user-info">
+              <span id="user-handle" class="user-handle">@username</span>
+              <span class="user-status">🟢 Connected</span>
+            </div>
+            <button id="btn-disconnect" class="btn btn-sm btn-danger">Disconnect</button>
+          </div>
+
           <button id="btn-refresh" class="btn btn-icon" title="Refresh Vault">🔄</button>
         </div>
       </header>
@@ -107,15 +121,27 @@
         <div class="locked-content">
           <span class="locked-icon">🔒</span>
           <h3>GitHub Authentication Required</h3>
-          <p>Please enter your GitHub Personal Access Token (PAT) above and click <strong>Connect</strong> to access NymphVault, run Chrono-Lambdas, and manage tasks.</p>
+          <p>Please enter your GitHub Personal Access Token (PAT) above and click <strong>Connect</strong> to access NymphVault, run Chrono Nymph Shells, and manage tasks.</p>
         </div>
       </div>
 
-      <!-- Tab 1: Tasks & Lambdas -->
-      <section id="tab-tasks" class="tab-pane active">
+      <!-- Tab 0: Dashboard Overview -->
+      <section id="tab-dashboard" class="tab-pane active">
         <div class="pane-header">
-          <h2>Registered Nymph Tasks</h2>
+          <h2>Inventory & Fast Access Overview</h2>
           <span class="pulse-indicator" id="tymbal-status">🔒 Vault Locked</span>
+        </div>
+
+        <div id="dashboard-inventory" class="dashboard-inventory-grid">
+          <!-- Populated dynamically via JS -->
+        </div>
+      </section>
+
+      <!-- Tab 1: Tasks & Shells -->
+      <section id="tab-tasks" class="tab-pane">
+        <div class="pane-header">
+          <h2>Registered Nymph Tasks & Shells</h2>
+          <button id="btn-create-task" class="btn btn-primary" disabled>+ Create Nymph Task</button>
         </div>
         <div id="tasks-grid" class="cards-grid">
           <!-- Populated dynamically via JS -->
@@ -126,7 +152,7 @@
       <section id="tab-barriers" class="tab-pane">
         <div class="pane-header">
           <h2>🔒 Stridulation Barrier Sync Gates</h2>
-          <button id="btn-create-barrier" class="btn btn-secondary" disabled>+ New Barrier Gate</button>
+          <button id="btn-create-barrier" class="btn btn-primary" disabled>+ New Barrier Gate</button>
         </div>
         <div id="barriers-grid" class="cards-grid">
           <!-- Populated dynamically via JS -->
@@ -137,7 +163,7 @@
       <section id="tab-governors" class="tab-pane">
         <div class="pane-header">
           <h2>⏱️ Temporal Rate-Pulse Governor Metronome</h2>
-          <button id="btn-create-governor" class="btn btn-secondary" disabled>+ New Metronome Governor</button>
+          <button id="btn-create-governor" class="btn btn-primary" disabled>+ New Metronome Governor</button>
         </div>
         <div id="governors-grid" class="cards-grid">
           <!-- Populated dynamically via JS -->
@@ -161,7 +187,7 @@
   <div id="modal-task" class="modal-overlay">
     <div class="modal-card">
       <div class="modal-header">
-        <h3 id="modal-task-title">Create Nymph Task / Serverless Lambda</h3>
+        <h3 id="modal-task-title">Create Nymph Task / Shell</h3>
         <button class="modal-close" id="modal-task-close">&times;</button>
       </div>
       <div class="modal-body">
@@ -177,8 +203,8 @@
             <div class="form-group">
               <label>Category / Trigger Mode</label>
               <select id="task-category" class="form-input">
-                <option value="chrono_lambda">Chrono-Lambda (Scheduled Cron)</option>
-                <option value="classic_lambda">Classic Lambda (On-Demand Webhook)</option>
+                <option value="chrono_shell">Chrono Nymph Shell (Scheduled Cron)</option>
+                <option value="classic_shell">Classic Nymph Shell (On-Demand Webhook)</option>
               </select>
             </div>
             <div class="form-group">
@@ -252,6 +278,77 @@
           <div class="modal-footer">
             <button type="button" class="btn btn-secondary" id="btn-cancel-task">Cancel</button>
             <button type="submit" class="btn btn-primary">Save Task to NymphVault</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- Barrier Create/Edit Modal -->
+  <div id="modal-barrier" class="modal-overlay">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3 id="modal-barrier-title">Create / Edit Stridulation Barrier Gate</h3>
+        <button class="modal-close" id="modal-barrier-close">&times;</button>
+      </div>
+      <div class="modal-body">
+        <form id="form-barrier">
+          <input type="hidden" id="barrier-id">
+
+          <div class="form-group">
+            <label>Barrier Name</label>
+            <input type="text" id="barrier-name" placeholder="e.g. Multi-Service Deploy Gate" required class="form-input">
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label>Barrier Key Identifier</label>
+              <input type="text" id="barrier-key" placeholder="gate-deploy-v1" required class="form-input">
+            </div>
+            <div class="form-group">
+              <label>Required Signals Count Threshold</label>
+              <input type="number" id="barrier-count" value="2" min="1" required class="form-input">
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label>Target HTTP URL on Release</label>
+            <input type="url" id="barrier-url" placeholder="https://api.mycompany.com/deploy/release" required class="form-input">
+          </div>
+
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" id="btn-cancel-barrier">Cancel</button>
+            <button type="submit" class="btn btn-primary">Save Barrier Gate</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- Governor Create/Edit Modal -->
+  <div id="modal-governor" class="modal-overlay">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3 id="modal-governor-title">Create / Edit Rate-Pulse Governor</h3>
+        <button class="modal-close" id="modal-governor-close">&times;</button>
+      </div>
+      <div class="modal-body">
+        <form id="form-governor">
+          <input type="hidden" id="governor-id">
+
+          <div class="form-group">
+            <label>Governor Name</label>
+            <input type="text" id="governor-name" placeholder="e.g. OpenAI Embeddings Metronome" required class="form-input">
+          </div>
+
+          <div class="form-group">
+            <label>Cadence Metronome Interval (ms)</label>
+            <input type="number" id="governor-cadence" value="2500" min="100" required class="form-input">
+          </div>
+
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" id="btn-cancel-governor">Cancel</button>
+            <button type="submit" class="btn btn-primary">Save Governor Metronome</button>
           </div>
         </form>
       </div>
