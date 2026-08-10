@@ -494,6 +494,8 @@ await syncada.runTask('${task.id}');`;
       document.getElementById('push-payload-text').value = '';
       document.getElementById('push-priority').value = 'normal';
       document.getElementById('push-override-url').value = '';
+      document.getElementById('push-trigger-pulse').checked = false;
+      document.getElementById('push-trigger-autopulse').checked = !!gov.isAutoPulsing;
       document.getElementById('modal-push-payload').classList.add('active');
     }
 
@@ -509,6 +511,8 @@ await syncada.runTask('${task.id}');`;
       const rawPayload = document.getElementById('push-payload-text').value.trim();
       const priority = document.getElementById('push-priority').value;
       const overrideUrl = document.getElementById('push-override-url').value.trim();
+      const shouldPulseNow = document.getElementById('push-trigger-pulse').checked;
+      const shouldAutoPulse = document.getElementById('push-trigger-autopulse').checked;
 
       let payload;
       try { payload = JSON.parse(rawPayload); } catch { payload = rawPayload; }
@@ -529,6 +533,24 @@ await syncada.runTask('${task.id}');`;
       const weights = { high: 3, normal: 2, low: 1 };
       gov.batchQueue.sort((a, b) => (weights[b.priority || 'normal'] || 2) - (weights[a.priority || 'normal'] || 2));
       gov.status = 'active';
+
+      // Immediate Pulse Action
+      if (shouldPulseNow && gov.batchQueue.length > 0) {
+        const burst = gov.maxBurst || 1;
+        for (let i = 0; i < burst; i++) {
+          if (gov.batchQueue.length > 0) {
+            gov.processedCount++;
+            gov.batchQueue.shift();
+          }
+        }
+      }
+
+      // Continuous Auto-Pulse Toggle Action
+      if (shouldAutoPulse && !gov.isAutoPulsing) {
+        this.toggleAutoPulse(govId);
+      } else if (!shouldAutoPulse && gov.isAutoPulsing) {
+        this.toggleAutoPulse(govId);
+      }
 
       this.saveLocalVaultState();
       this.closePushPayloadModal();
@@ -1103,15 +1125,15 @@ await syncada.runTask('${task.id}');`;
         let queuePreviewHtml = '';
         if (g.batchQueue.length > 0) {
           queuePreviewHtml = `
-            <div style="background: rgba(0,0,0,0.3); border: 1px solid var(--border); border-radius: 8px; padding: 10px; margin-top: 6px;">
+            <div style="background: rgba(0,0,0,0.3); border: 1px solid var(--border); border-radius: 8px; padding: 10px; margin-top: 6px; min-width: 0; overflow: hidden;">
               <span style="font-size: 0.78rem; font-weight: 600; color: var(--primary);">📋 Top Pending Items in Queue (${g.batchQueue.length}):</span>
-              <ul style="list-style: none; padding: 0; margin-top: 6px; font-size: 0.78rem;">
+              <ul style="list-style: none; padding: 0; margin-top: 6px; font-size: 0.78rem; min-width: 0;">
                 ${g.batchQueue.slice(0, 3).map((item, idx) => {
-                  const pBadge = item.priority === 'high' ? '🔴 HIGH' : (item.priority === 'low' ? '🟢 LOW' : '🟡 NORMAL');
-                  const bodyPreview = item.body ? item.body.substring(0, 35) + '...' : (item.url || 'Payload');
-                  return `<li style="display: flex; justify-content: space-between; padding: 2px 0; border-bottom: 1px solid rgba(255,255,255,0.05);">
-                    <span style="color: var(--text-muted); font-family: monospace;">#${idx + 1} ${bodyPreview}</span>
-                    <span style="font-weight: 600;">${pBadge}</span>
+                  const pBadge = item.priority === 'high' ? '🔴 HIGH' : (item.priority === 'low' ? '🟢 LOW' : '🟡 NORM');
+                  const bodyPreview = item.body ? item.body : (item.url || 'Payload');
+                  return `<li style="display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 4px 0; border-bottom: 1px solid rgba(255,255,255,0.05); min-width: 0;">
+                    <span style="color: var(--text-muted); font-family: monospace; font-size: 0.76rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; min-width: 0;">#${idx + 1} ${bodyPreview}</span>
+                    <span style="font-weight: 600; font-size: 0.7rem; flex-shrink: 0; white-space: nowrap; padding: 2px 6px; background: rgba(255,255,255,0.06); border-radius: 4px;">${pBadge}</span>
                   </li>`;
                 }).join('')}
               </ul>
@@ -1127,7 +1149,7 @@ await syncada.runTask('${task.id}');`;
             <span class="card-badge ${g.isAutoPulsing ? 'badge-completed' : 'badge-hibernating'}">${g.isAutoPulsing ? 'AUTO-PULSE ON ⚡' : 'MANUAL ⏸️'}</span>
           </div>
           <div class="card-details">
-            <div class="detail-row"><span class="detail-label">Default Endpoint:</span><span class="detail-val" style="color: var(--primary);">${targetLabel}</span></div>
+            <div class="detail-row"><span class="detail-label">Default Endpoint:</span><span class="detail-val detail-val-url" style="color: var(--primary);">${targetLabel}</span></div>
             <div class="detail-row"><span class="detail-label">Cadence Metronome:</span><span class="detail-val">${cadenceLabel}</span></div>
             <div class="detail-row"><span class="detail-label">Max Burst Size:</span><span class="detail-val">${g.maxBurst || 1} items/pulse</span></div>
             <div class="detail-row"><span class="detail-label">Adaptive Backoff:</span><span class="detail-val">${g.enableAdaptiveBackoff ? 'ENABLED ⚡' : 'DISABLED'}</span></div>

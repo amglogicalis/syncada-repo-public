@@ -295,6 +295,18 @@ await syncada.barrier.signalBarrier(barrier, 'auth-service', { authVersion: 'v2.
             </div>
           </div>
 
+          <div class="form-section" style="margin-top: 12px;">
+            <label><strong>⚡ Execution Actions</strong></label>
+            <div class="checkbox-group" style="margin-top: 6px;">
+              <input type="checkbox" id="push-trigger-pulse">
+              <label for="push-trigger-pulse"><strong>⚡ Pulse Metronome immediately</strong> (Execute 1 burst now)</label>
+            </div>
+            <div class="checkbox-group" style="margin-top: 6px;">
+              <input type="checkbox" id="push-trigger-autopulse">
+              <label for="push-trigger-autopulse"><strong>▶️ Start continuous Auto-Pulse Metronome</strong> (Keep pacing automatically)</label>
+            </div>
+          </div>
+
           <div class="modal-footer">
             <button type="button" class="btn btn-secondary" id="btn-cancel-push">Cancel</button>
             <button type="submit" class="btn btn-primary">Enqueue Payload 📥</button>

@@ -501,9 +501,20 @@ body {
   color: var(--text);
   font-weight: 500;
   text-align: right;
+  word-break: normal;
+  overflow-wrap: break-word;
+  white-space: normal;
+  min-width: 0;
+  max-width: 220px;
+}
+
+.detail-val-url {
   word-break: break-all;
   overflow-wrap: anywhere;
-  min-width: 0;
+  text-overflow: ellipsis;
+  overflow: hidden;
+  white-space: nowrap;
+  max-width: 200px;
 }
 
 .card-actions {
