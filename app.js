@@ -240,7 +240,7 @@ document.addEventListener('DOMContentLoaded', () => {
             tasks: '🌰 Nymph Tasks & Shells',
             barriers: '🔒 Stridulation Barrier Sync Gates',
             governors: '⏱️ Temporal Rate-Pulse Governor Metronome',
-            exuvias: '📜 Exuvia Forensic Time-Travel Replay'
+            exuvias: '📜 Exuvia Replay Timeline'
           };
           document.getElementById('page-title').innerText = titleMap[tabId] || 'Syncada Studio';
         });
@@ -277,6 +277,44 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         this.renderAll();
         this.showToast('Vault reloaded from state.', 'success');
+      });
+
+      // Onboarding Guide Modal Open / Close
+      document.getElementById('btn-open-guide').addEventListener('click', () => {
+        document.getElementById('modal-guide').classList.add('active');
+      });
+      document.getElementById('modal-guide-close').addEventListener('click', () => {
+        document.getElementById('modal-guide').classList.remove('active');
+      });
+
+      // Guide Tabs Switching
+      document.querySelectorAll('.guide-tab').forEach(btn => {
+        btn.addEventListener('click', () => {
+          document.querySelectorAll('.guide-tab').forEach(b => b.classList.remove('active'));
+          document.querySelectorAll('.guide-section').forEach(s => s.classList.add('hidden'));
+
+          btn.classList.add('active');
+          const target = btn.dataset.guide;
+          document.getElementById(`guide-content-${target}`).classList.remove('hidden');
+          document.getElementById(`guide-content-${target}`).classList.add('active');
+        });
+      });
+
+      // Snippet Modal Close
+      document.getElementById('modal-snippet-close').addEventListener('click', () => {
+        document.getElementById('modal-snippet').classList.remove('active');
+      });
+
+      // Global Copy Snippet Listener
+      document.addEventListener('click', (e) => {
+        if (e.target && e.target.classList.contains('copy-snippet-btn')) {
+          const targetId = e.target.dataset.target;
+          const codeEl = document.getElementById(targetId);
+          if (codeEl) {
+            navigator.clipboard.writeText(codeEl.innerText.trim());
+            this.showToast('📋 Snippet copied to clipboard!', 'success');
+          }
+        }
       });
 
       // Task Target Type Toggle
@@ -326,6 +364,109 @@ document.addEventListener('DOMContentLoaded', () => {
         e.preventDefault();
         this.saveGovernorFromModal();
       });
+    }
+
+    // Dynamic 1-Click Snippet Generator (ZERO Hardcoding!)
+    openSnippetModal(type, id) {
+      const container = document.getElementById('snippet-container');
+      container.innerHTML = '';
+
+      const login = this.userProfile?.login || 'YOUR_USER';
+      const userToken = this.token || 'ghp_YOUR_TOKEN';
+
+      if (type === 'barrier') {
+        const barrier = this.state.barriers[id];
+        if (!barrier) return;
+
+        document.getElementById('modal-snippet-title').innerText = `📋 Integration Snippets — "${barrier.name}"`;
+        document.getElementById('modal-snippet-desc').innerText = `Use these pre-filled code snippets to signal barrier key "${barrier.barrierKey}" from your microservices or scripts.`;
+
+        const sender = barrier.requiredSenders && barrier.requiredSenders.length > 0 ? barrier.requiredSenders[0] : 'service-node-1';
+
+        const curlCode = `curl -X POST "https://api.github.com/repos/${login}/.syncada-storage/dispatches" \\
+  -H "Authorization: token ${userToken}" \\
+  -H "Accept: application/vnd.github.v3+json" \\
+  -d '{"event_type":"syncada_barrier_signal","client_payload":{"barrierKey":"${barrier.barrierKey}","sender":"${sender}","payload":{"status":"READY","timestamp":"${new Date().toISOString()}"}}}'`;
+
+        const cliCode = `syncada barrier signal "${barrier.barrierKey}" --sender "${sender}" --payload '{"status":"READY"}'`;
+
+        const jsCode = `import { Syncada } from 'terra-syncada';
+
+const syncada = new Syncada({ githubToken: process.env.GITHUB_TOKEN });
+
+// Signal barrier key "${barrier.barrierKey}" from microservice "${sender}"
+await syncada.barrier.signalBarrier(
+  "${barrier.barrierKey}",
+  "${sender}",
+  { status: "READY", timestamp: new Date().toISOString() }
+);`;
+
+        const pyCode = `import requests, os, json
+
+# Signal Syncada Stridulation Barrier "${barrier.name}"
+url = "https://api.github.com/repos/${login}/.syncada-storage/dispatches"
+headers = {
+    "Authorization": f"token {os.getenv('GITHUB_TOKEN')}",
+    "Accept": "application/vnd.github.v3+json"
+}
+data = {
+    "event_type": "syncada_barrier_signal",
+    "client_payload": {
+        "barrierKey": "${barrier.barrierKey}",
+        "sender": "${sender}",
+        "payload": {"status": "READY"}
+    }
+}
+response = requests.post(url, headers=headers, json=data)
+print(response.status_code)`;
+
+        container.innerHTML = `
+          <div class="snippet-box">
+            <div class="snippet-header"><span>1. cURL / Webhook HTTP POST</span><button class="btn btn-sm btn-secondary copy-snippet-btn" data-target="code-dynamic-curl">📋 Copy cURL</button></div>
+            <pre><code id="code-dynamic-curl">${curlCode}</code></pre>
+          </div>
+
+          <div class="snippet-box">
+            <div class="snippet-header"><span>2. Syncada CLI Command</span><button class="btn btn-sm btn-secondary copy-snippet-btn" data-target="code-dynamic-cli">📋 Copy CLI</button></div>
+            <pre><code id="code-dynamic-cli">${cliCode}</code></pre>
+          </div>
+
+          <div class="snippet-box">
+            <div class="snippet-header"><span>3. Node.js / TypeScript SDK</span><button class="btn btn-sm btn-secondary copy-snippet-btn" data-target="code-dynamic-js">📋 Copy Node.js</button></div>
+            <pre><code id="code-dynamic-js">${jsCode}</code></pre>
+          </div>
+
+          <div class="snippet-box">
+            <div class="snippet-header"><span>4. Python Script</span><button class="btn btn-sm btn-secondary copy-snippet-btn" data-target="code-dynamic-py">📋 Copy Python</button></div>
+            <pre><code id="code-dynamic-py">${pyCode}</code></pre>
+          </div>
+        `;
+      } else if (type === 'task') {
+        const task = this.state.tasks[id];
+        if (!task) return;
+
+        document.getElementById('modal-snippet-title').innerText = `📋 Integration Snippets — "${task.name}"`;
+        document.getElementById('modal-snippet-desc').innerText = `Trigger Nymph Task "${task.id}" on-demand from your application or terminal.`;
+
+        const cliCode = `syncada task run ${task.id}`;
+        const jsCode = `import { Syncada } from 'terra-syncada';
+const syncada = new Syncada({ githubToken: process.env.GITHUB_TOKEN });
+await syncada.runTask('${task.id}');`;
+
+        container.innerHTML = `
+          <div class="snippet-box">
+            <div class="snippet-header"><span>1. Syncada CLI Command</span><button class="btn btn-sm btn-secondary copy-snippet-btn" data-target="code-task-dynamic-cli">📋 Copy CLI</button></div>
+            <pre><code id="code-task-dynamic-cli">${cliCode}</code></pre>
+          </div>
+
+          <div class="snippet-box">
+            <div class="snippet-header"><span>2. Node.js / TypeScript SDK</span><button class="btn btn-sm btn-secondary copy-snippet-btn" data-target="code-task-dynamic-js">📋 Copy Node.js</button></div>
+            <pre><code id="code-task-dynamic-js">${jsCode}</code></pre>
+          </div>
+        `;
+      }
+
+      document.getElementById('modal-snippet').classList.add('active');
     }
 
     // Task Modal Helpers
@@ -740,6 +881,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
           <div class="card-actions">
             <button class="btn btn-sm btn-primary btn-run" data-id="${task.id}">🥁 Emerging Now</button>
+            <button class="btn btn-sm btn-secondary btn-snippet-task" data-id="${task.id}">📋 Snippets</button>
             <button class="btn btn-sm btn-secondary btn-edit-task" data-id="${task.id}">✏️ Edit</button>
             <button class="btn btn-sm btn-danger btn-del-task" data-id="${task.id}">🗑️</button>
           </div>
@@ -749,6 +891,7 @@ document.addEventListener('DOMContentLoaded', () => {
       });
 
       grid.querySelectorAll('.btn-run').forEach(b => b.addEventListener('click', () => this.runTaskNow(b.dataset.id)));
+      grid.querySelectorAll('.btn-snippet-task').forEach(b => b.addEventListener('click', () => this.openSnippetModal('task', b.dataset.id)));
       grid.querySelectorAll('.btn-edit-task').forEach(b => b.addEventListener('click', () => this.openTaskModal(this.state.tasks[b.dataset.id])));
       grid.querySelectorAll('.btn-del-task').forEach(b => b.addEventListener('click', () => this.deleteTask(b.dataset.id)));
     }
@@ -787,6 +930,7 @@ document.addEventListener('DOMContentLoaded', () => {
             <div class="detail-row"><span class="detail-label">Release Target:</span><span class="detail-val">${b.targetOnRelease?.url || 'Configured Target'}</span></div>
           </div>
           <div class="card-actions">
+            <button class="btn btn-sm btn-primary btn-snippet-barrier" data-id="${b.id}">📋 Snippets & Webhook</button>
             <button class="btn btn-sm btn-secondary btn-signal" data-key="${b.barrierKey}">📡 Send Signal</button>
             <button class="btn btn-sm btn-secondary btn-edit-barrier" data-id="${b.id}">✏️ Edit</button>
             <button class="btn btn-sm btn-danger btn-del-barrier" data-id="${b.id}">🗑️</button>
@@ -794,6 +938,8 @@ document.addEventListener('DOMContentLoaded', () => {
         `;
         grid.appendChild(card);
       });
+
+      grid.querySelectorAll('.btn-snippet-barrier').forEach(b => b.addEventListener('click', () => this.openSnippetModal('barrier', b.dataset.id)));
 
       grid.querySelectorAll('.btn-signal').forEach(b => {
         b.addEventListener('click', () => {

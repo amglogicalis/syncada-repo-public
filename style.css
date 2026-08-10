@@ -589,6 +589,10 @@ body {
   box-shadow: 0 16px 40px rgba(0, 0, 0, 0.6);
 }
 
+.modal-large {
+  max-width: 820px !important;
+}
+
 .modal-header {
   display: flex;
   justify-content: space-between;
@@ -606,6 +610,69 @@ body {
   color: var(--text-muted);
   font-size: 1.6rem;
   cursor: pointer;
+}
+
+.guide-nav {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 16px;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 12px;
+}
+
+.guide-tab.active {
+  background: var(--primary) !important;
+  color: #000 !important;
+  border-color: var(--primary) !important;
+}
+
+.guide-section {
+  display: none;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.guide-section.active {
+  display: flex;
+}
+
+.guide-desc {
+  font-size: 0.88rem;
+  color: var(--text-muted);
+  line-height: 1.5;
+}
+
+.snippet-box {
+  background: #09090e;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+
+.snippet-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: rgba(255, 134, 139, 0.08);
+  padding: 8px 14px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--primary);
+  border-bottom: 1px solid var(--border);
+}
+
+pre {
+  margin: 0;
+  padding: 14px;
+  overflow-x: auto;
+}
+
+code {
+  font-family: 'Courier New', Courier, monospace;
+  font-size: 0.83rem;
+  color: #f1f5f9;
+  white-space: pre-wrap;
+  word-break: break-all;
 }
 
 .form-group {
@@ -642,7 +709,6 @@ body {
   box-shadow: 0 0 12px var(--primary-glow);
 }
 
-/* Custom Dropdown / Select Styling for Dark Mode */
 select.form-input {
   background-color: #181824 !important;
   color: #f1f5f9 !important;
