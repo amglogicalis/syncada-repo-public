@@ -237,10 +237,10 @@ await syncada.barrier.signalBarrier(barrier, 'auth-service', { authVersion: 'v2.
 
         <div id="guide-content-governors" class="guide-section hidden">
           <h4>⏱️ How to Push Items into a Rate-Pulse Governor</h4>
-          <p class="guide-desc">Enqueue targets to be paced by the metronome governor to prevent HTTP 429 rate limit bans.</p>
+          <p class="guide-desc">Enqueue targets or payloads to be paced by the metronome governor to prevent HTTP 429 rate limit bans.</p>
           <div class="snippet-box">
             <div class="snippet-header"><span>Syncada CLI Command</span><button class="btn btn-sm btn-secondary copy-snippet-btn" data-target="code-gov-cli">📋 Copy</button></div>
-            <pre><code id="code-gov-cli">syncada governor push gov-openai-metronome --url "https://api.openai.com/v1/embeddings" --priority high</code></pre>
+            <pre><code id="code-gov-cli">syncada governor push gov-openai-metronome --payload '{"input":"Hello world"}' --priority high</code></pre>
           </div>
         </div>
       </div>
@@ -260,6 +260,46 @@ await syncada.barrier.signalBarrier(barrier, 'auth-service', { authVersion: 'v2.
         <div id="snippet-container" class="snippet-container">
           <!-- Populated dynamically via app.js with ZERO hardcoded values -->
         </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Push Payload Modal for Governor -->
+  <div id="modal-push-payload" class="modal-overlay">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3 id="modal-push-title">📥 Push Payload to Metronome Queue</h3>
+        <button class="modal-close" id="modal-push-close">&times;</button>
+      </div>
+      <div class="modal-body">
+        <form id="form-push-payload">
+          <input type="hidden" id="push-gov-id">
+
+          <div class="form-group">
+            <label>Payload / Body JSON</label>
+            <textarea id="push-payload-text" rows="5" placeholder='{ "input": "Translate this customer review to Spanish" }' class="form-input code-input" required></textarea>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label>Queue Priority</label>
+              <select id="push-priority" class="form-input">
+                <option value="normal">Normal Priority 🟡 (FIFO Order)</option>
+                <option value="high">High Priority 🔴 (Jump to Front of Queue)</option>
+                <option value="low">Low Priority 🟢 (Process Last)</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Override Destination URL (Optional)</label>
+              <input type="url" id="push-override-url" placeholder="Uses Governor Default URL if blank" class="form-input">
+            </div>
+          </div>
+
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" id="btn-cancel-push">Cancel</button>
+            <button type="submit" class="btn btn-primary">Enqueue Payload 📥</button>
+          </div>
+        </form>
       </div>
     </div>
   </div>
@@ -440,6 +480,22 @@ await syncada.barrier.signalBarrier(barrier, 'auth-service', { authVersion: 'v2.
           <div class="form-group">
             <label>Governor Name</label>
             <input type="text" id="governor-name" placeholder="e.g. OpenAI Embeddings Metronome" required class="form-input">
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label>Default Destination Target URL (Optional)</label>
+              <input type="url" id="governor-target-url" placeholder="https://api.openai.com/v1/embeddings" class="form-input">
+            </div>
+            <div class="form-group">
+              <label>Default HTTP Method</label>
+              <select id="governor-target-method" class="form-input">
+                <option value="POST">POST</option>
+                <option value="GET">GET</option>
+                <option value="PUT">PUT</option>
+                <option value="DELETE">DELETE</option>
+              </select>
+            </div>
           </div>
 
           <div class="form-row">

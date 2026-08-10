@@ -5,6 +5,7 @@ document.addEventListener('DOMContentLoaded', () => {
       this.token = localStorage.getItem('syncada_gh_token') || '';
       this.userProfile = null;
       this.isConnected = false;
+      this.autoPulseTimers = {};
       this.state = {
         tasks: {},
         barriers: {},
@@ -64,7 +65,7 @@ document.addEventListener('DOMContentLoaded', () => {
         } catch {}
       }
 
-      // Seed initial vault state for authenticated session
+      // Seed initial vault state
       this.state = {
         tasks: {
           'task-midnight-backup': {
@@ -106,20 +107,6 @@ document.addEventListener('DOMContentLoaded', () => {
             nextEmergenceTime: new Date(Date.now() + 900000).toISOString(),
             createdAt: new Date().toISOString(),
             updatedAt: new Date().toISOString()
-          },
-          'task-instant-webhook': {
-            id: 'task-instant-webhook',
-            name: 'On-Demand Classic Nymph Shell Handler',
-            category: 'classic_shell',
-            primaryTarget: {
-              type: 'inline_code',
-              inlineCode: 'return { status: "processed", event: "user_registered", timestamp: new Date().toISOString() };'
-            },
-            enableHA: false,
-            enableDiffAware: false,
-            status: 'idle',
-            createdAt: new Date().toISOString(),
-            updatedAt: new Date().toISOString()
           }
         },
         barriers: {
@@ -144,11 +131,14 @@ document.addEventListener('DOMContentLoaded', () => {
             name: 'OpenAI Batch Metronome Governor',
             cadenceMs: 2500,
             currentCadenceMs: 2500,
+            defaultTargetUrl: 'https://api.openai.com/v1/embeddings',
+            defaultTargetMethod: 'POST',
             maxBurst: 2,
             enableAdaptiveBackoff: true,
+            isAutoPulsing: false,
             batchQueue: [
-              { type: 'http', url: 'https://api.openai.com/v1/embeddings', priority: 'high' },
-              { type: 'http', url: 'https://api.openai.com/v1/embeddings', priority: 'normal' }
+              { type: 'http', url: 'https://api.openai.com/v1/embeddings', method: 'POST', body: '{"input":"Translate review 1"}', priority: 'high' },
+              { type: 'http', url: 'https://api.openai.com/v1/embeddings', method: 'POST', body: '{"input":"Analyze sentiment"}', priority: 'normal' }
             ],
             processedCount: 14,
             status: 'active',
@@ -329,6 +319,14 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('section-ha-options').classList.toggle('hidden', !e.target.checked);
       });
 
+      // Push Payload Modal Close / Submit
+      document.getElementById('modal-push-close').addEventListener('click', () => this.closePushPayloadModal());
+      document.getElementById('btn-cancel-push').addEventListener('click', () => this.closePushPayloadModal());
+      document.getElementById('form-push-payload').addEventListener('submit', (e) => {
+        e.preventDefault();
+        this.savePushPayloadFromModal();
+      });
+
       // Task Modal Open / Close
       document.getElementById('btn-create-task').addEventListener('click', () => {
         if (!this.isConnected) return;
@@ -391,54 +389,73 @@ document.addEventListener('DOMContentLoaded', () => {
         const cliCode = `syncada barrier signal "${barrier.barrierKey}" --sender "${sender}" --payload '{"status":"READY"}'`;
 
         const jsCode = `import { Syncada } from 'terra-syncada';
-
 const syncada = new Syncada({ githubToken: process.env.GITHUB_TOKEN });
+await syncada.barrier.signalBarrier("${barrier.barrierKey}", "${sender}", { status: "READY" });`;
 
-// Signal barrier key "${barrier.barrierKey}" from microservice "${sender}"
-await syncada.barrier.signalBarrier(
-  "${barrier.barrierKey}",
-  "${sender}",
-  { status: "READY", timestamp: new Date().toISOString() }
-);`;
-
-        const pyCode = `import requests, os, json
-
-# Signal Syncada Stridulation Barrier "${barrier.name}"
+        const pyCode = `import requests, os
 url = "https://api.github.com/repos/${login}/.syncada-storage/dispatches"
-headers = {
-    "Authorization": f"token {os.getenv('GITHUB_TOKEN')}",
-    "Accept": "application/vnd.github.v3+json"
-}
-data = {
-    "event_type": "syncada_barrier_signal",
-    "client_payload": {
-        "barrierKey": "${barrier.barrierKey}",
-        "sender": "${sender}",
-        "payload": {"status": "READY"}
-    }
-}
-response = requests.post(url, headers=headers, json=data)
-print(response.status_code)`;
+headers = {"Authorization": f"token {os.getenv('GITHUB_TOKEN')}", "Accept": "application/vnd.github.v3+json"}
+data = {"event_type": "syncada_barrier_signal", "client_payload": {"barrierKey": "${barrier.barrierKey}", "sender": "${sender}", "payload": {"status": "READY"}}}
+requests.post(url, headers=headers, json=data)`;
 
         container.innerHTML = `
           <div class="snippet-box">
             <div class="snippet-header"><span>1. cURL / Webhook HTTP POST</span><button class="btn btn-sm btn-secondary copy-snippet-btn" data-target="code-dynamic-curl">📋 Copy cURL</button></div>
             <pre><code id="code-dynamic-curl">${curlCode}</code></pre>
           </div>
-
           <div class="snippet-box">
             <div class="snippet-header"><span>2. Syncada CLI Command</span><button class="btn btn-sm btn-secondary copy-snippet-btn" data-target="code-dynamic-cli">📋 Copy CLI</button></div>
             <pre><code id="code-dynamic-cli">${cliCode}</code></pre>
           </div>
-
           <div class="snippet-box">
             <div class="snippet-header"><span>3. Node.js / TypeScript SDK</span><button class="btn btn-sm btn-secondary copy-snippet-btn" data-target="code-dynamic-js">📋 Copy Node.js</button></div>
             <pre><code id="code-dynamic-js">${jsCode}</code></pre>
           </div>
-
           <div class="snippet-box">
             <div class="snippet-header"><span>4. Python Script</span><button class="btn btn-sm btn-secondary copy-snippet-btn" data-target="code-dynamic-py">📋 Copy Python</button></div>
             <pre><code id="code-dynamic-py">${pyCode}</code></pre>
+          </div>
+        `;
+      } else if (type === 'governor') {
+        const gov = this.state.governors[id];
+        if (!gov) return;
+
+        document.getElementById('modal-snippet-title').innerText = `📋 Integration Snippets — "${gov.name}"`;
+        document.getElementById('modal-snippet-desc').innerText = `Push payloads into Governor metronome "${gov.name}" [Endpoint: ${gov.defaultTargetUrl || 'Generic'}]`;
+
+        const curlCode = `curl -X POST "https://api.github.com/repos/${login}/.syncada-storage/dispatches" \\
+  -H "Authorization: token ${userToken}" \\
+  -H "Accept: application/vnd.github.v3+json" \\
+  -d '{"event_type":"syncada_governor_push","client_payload":{"govId":"${gov.id}","payload":{"input":"Hello World"},"priority":"high"}}'`;
+
+        const cliCode = `syncada governor push "${gov.id}" --payload '{"input":"Hello World"}' --priority high`;
+
+        const jsCode = `import { Syncada } from 'terra-syncada';
+const syncada = new Syncada({ githubToken: process.env.GITHUB_TOKEN });
+await syncada.governor.pushPayload(governor, { input: "Hello World" }, { priority: "high" });`;
+
+        const pyCode = `import requests, os
+url = "https://api.github.com/repos/${login}/.syncada-storage/dispatches"
+headers = {"Authorization": f"token {os.getenv('GITHUB_TOKEN')}", "Accept": "application/vnd.github.v3+json"}
+data = {"event_type": "syncada_governor_push", "client_payload": {"govId": "${gov.id}", "payload": {"input": "Hello World"}, "priority": "high"}}
+requests.post(url, headers=headers, json=data)`;
+
+        container.innerHTML = `
+          <div class="snippet-box">
+            <div class="snippet-header"><span>1. cURL / Webhook HTTP POST</span><button class="btn btn-sm btn-secondary copy-snippet-btn" data-target="code-gov-curl">📋 Copy cURL</button></div>
+            <pre><code id="code-gov-curl">${curlCode}</code></pre>
+          </div>
+          <div class="snippet-box">
+            <div class="snippet-header"><span>2. Syncada CLI Command</span><button class="btn btn-sm btn-secondary copy-snippet-btn" data-target="code-gov-cli">📋 Copy CLI</button></div>
+            <pre><code id="code-gov-cli">${cliCode}</code></pre>
+          </div>
+          <div class="snippet-box">
+            <div class="snippet-header"><span>3. Node.js / TypeScript SDK</span><button class="btn btn-sm btn-secondary copy-snippet-btn" data-target="code-gov-js">📋 Copy Node.js</button></div>
+            <pre><code id="code-gov-js">${jsCode}</code></pre>
+          </div>
+          <div class="snippet-box">
+            <div class="snippet-header"><span>4. Python Script</span><button class="btn btn-sm btn-secondary copy-snippet-btn" data-target="code-gov-py">📋 Copy Python</button></div>
+            <pre><code id="code-gov-py">${pyCode}</code></pre>
           </div>
         `;
       } else if (type === 'task') {
@@ -458,7 +475,6 @@ await syncada.runTask('${task.id}');`;
             <div class="snippet-header"><span>1. Syncada CLI Command</span><button class="btn btn-sm btn-secondary copy-snippet-btn" data-target="code-task-dynamic-cli">📋 Copy CLI</button></div>
             <pre><code id="code-task-dynamic-cli">${cliCode}</code></pre>
           </div>
-
           <div class="snippet-box">
             <div class="snippet-header"><span>2. Node.js / TypeScript SDK</span><button class="btn btn-sm btn-secondary copy-snippet-btn" data-target="code-task-dynamic-js">📋 Copy Node.js</button></div>
             <pre><code id="code-task-dynamic-js">${jsCode}</code></pre>
@@ -467,6 +483,57 @@ await syncada.runTask('${task.id}');`;
       }
 
       document.getElementById('modal-snippet').classList.add('active');
+    }
+
+    // Push Payload Modal Helpers
+    openPushPayloadModal(govId) {
+      const gov = this.state.governors[govId];
+      if (!gov) return;
+      document.getElementById('push-gov-id').value = govId;
+      document.getElementById('modal-push-title').innerText = `📥 Push Payload to "${gov.name}" Queue`;
+      document.getElementById('push-payload-text').value = '';
+      document.getElementById('push-priority').value = 'normal';
+      document.getElementById('push-override-url').value = '';
+      document.getElementById('modal-push-payload').classList.add('active');
+    }
+
+    closePushPayloadModal() {
+      document.getElementById('modal-push-payload').classList.remove('active');
+    }
+
+    savePushPayloadFromModal() {
+      const govId = document.getElementById('push-gov-id').value;
+      const gov = this.state.governors[govId];
+      if (!gov) return;
+
+      const rawPayload = document.getElementById('push-payload-text').value.trim();
+      const priority = document.getElementById('push-priority').value;
+      const overrideUrl = document.getElementById('push-override-url').value.trim();
+
+      let payload;
+      try { payload = JSON.parse(rawPayload); } catch { payload = rawPayload; }
+
+      const targetUrl = overrideUrl || gov.defaultTargetUrl || 'https://api.mycompany.com/pacing-test';
+
+      const targetItem = {
+        type: 'http',
+        url: targetUrl,
+        method: gov.defaultTargetMethod || 'POST',
+        body: typeof payload === 'object' ? JSON.stringify(payload) : String(payload),
+        payload,
+        priority
+      };
+
+      // Sort queue by priority
+      gov.batchQueue.push(targetItem);
+      const weights = { high: 3, normal: 2, low: 1 };
+      gov.batchQueue.sort((a, b) => (weights[b.priority || 'normal'] || 2) - (weights[a.priority || 'normal'] || 2));
+      gov.status = 'active';
+
+      this.saveLocalVaultState();
+      this.closePushPayloadModal();
+      this.renderAll();
+      this.showToast(`📥 Payload enqueued into "${gov.name}" [Priority: ${priority.toUpperCase()}]! Queue total: ${gov.batchQueue.length}`, 'success');
     }
 
     // Task Modal Helpers
@@ -611,6 +678,8 @@ await syncada.runTask('${task.id}');`;
       document.getElementById('modal-governor-title').innerText = gov ? 'Edit Rate-Pulse Governor' : 'Create Rate-Pulse Governor';
       document.getElementById('governor-id').value = gov ? gov.id : '';
       document.getElementById('governor-name').value = gov ? gov.name : '';
+      document.getElementById('governor-target-url').value = gov ? (gov.defaultTargetUrl || '') : '';
+      document.getElementById('governor-target-method').value = gov ? (gov.defaultTargetMethod || 'POST') : 'POST';
       document.getElementById('governor-cadence').value = gov ? gov.cadenceMs : 2500;
       document.getElementById('governor-burst').value = gov ? (gov.maxBurst || 1) : 1;
       document.getElementById('governor-adaptive').checked = gov ? (gov.enableAdaptiveBackoff ?? true) : true;
@@ -624,6 +693,8 @@ await syncada.runTask('${task.id}');`;
     saveGovernorFromModal() {
       const id = document.getElementById('governor-id').value || `gov-${Math.random().toString(36).substring(2, 9)}`;
       const name = document.getElementById('governor-name').value.trim();
+      const defaultTargetUrl = document.getElementById('governor-target-url').value.trim();
+      const defaultTargetMethod = document.getElementById('governor-target-method').value;
       const cadenceMs = parseInt(document.getElementById('governor-cadence').value, 10) || 2500;
       const maxBurst = parseInt(document.getElementById('governor-burst').value, 10) || 1;
       const enableAdaptiveBackoff = document.getElementById('governor-adaptive').checked;
@@ -635,9 +706,12 @@ await syncada.runTask('${task.id}');`;
         name,
         cadenceMs,
         currentCadenceMs: cadenceMs,
+        defaultTargetUrl: defaultTargetUrl || undefined,
+        defaultTargetMethod,
         maxBurst,
         enableAdaptiveBackoff,
-        batchQueue: existing ? existing.batchQueue : [{ type: 'http', url: 'https://api.mycompany.com/pacing-test' }],
+        isAutoPulsing: existing ? existing.isAutoPulsing : false,
+        batchQueue: existing ? existing.batchQueue : [{ type: 'http', url: defaultTargetUrl || 'https://api.mycompany.com/pacing-test', method: defaultTargetMethod, priority: 'normal' }],
         processedCount: existing ? existing.processedCount : 0,
         status: existing ? existing.status : 'active',
         createdAt: existing ? existing.createdAt : new Date().toISOString(),
@@ -717,10 +791,53 @@ await syncada.runTask('${task.id}');`;
 
     deleteGovernor(govId) {
       if (!this.isConnected) return;
+      if (this.autoPulseTimers[govId]) {
+        clearInterval(this.autoPulseTimers[govId]);
+        delete this.autoPulseTimers[govId];
+      }
       delete this.state.governors[govId];
       this.saveLocalVaultState();
       this.renderAll();
       this.showToast('Rate-Pulse Governor deleted.', 'info');
+    }
+
+    toggleAutoPulse(govId) {
+      const g = this.state.governors[govId];
+      if (!g) return;
+
+      g.isAutoPulsing = !g.isAutoPulsing;
+
+      if (g.isAutoPulsing) {
+        this.showToast(`⚡ Auto-Pulse Metronome STARTED for "${g.name}" (${g.cadenceMs}ms cadence)`, 'success');
+        this.autoPulseTimers[govId] = setInterval(() => {
+          if (!this.state.governors[govId] || !this.state.governors[govId].isAutoPulsing) {
+            clearInterval(this.autoPulseTimers[govId]);
+            delete this.autoPulseTimers[govId];
+            return;
+          }
+          const gov = this.state.governors[govId];
+          if (gov.batchQueue.length > 0) {
+            const burst = gov.maxBurst || 1;
+            for (let i = 0; i < burst; i++) {
+              if (gov.batchQueue.length > 0) {
+                gov.processedCount++;
+                gov.batchQueue.shift();
+              }
+            }
+            this.saveLocalVaultState();
+            this.renderAll();
+          }
+        }, g.cadenceMs);
+      } else {
+        if (this.autoPulseTimers[govId]) {
+          clearInterval(this.autoPulseTimers[govId]);
+          delete this.autoPulseTimers[govId];
+        }
+        this.showToast(`⏸️ Auto-Pulse Metronome PAUSED for "${g.name}"`, 'info');
+      }
+
+      this.saveLocalVaultState();
+      this.renderAll();
     }
 
     renderAll() {
@@ -980,21 +1097,48 @@ await syncada.runTask('${task.id}');`;
         const card = document.createElement('div');
         card.className = 'card';
         const cadenceLabel = g.currentCadenceMs && g.currentCadenceMs !== g.cadenceMs ? `${g.currentCadenceMs}ms (Adaptive)` : `${g.cadenceMs}ms`;
+        const targetLabel = g.defaultTargetUrl ? `[${g.defaultTargetMethod || 'POST'}] ${g.defaultTargetUrl}` : 'Generic Target (Per Payload)';
+
+        // Render queue preview
+        let queuePreviewHtml = '';
+        if (g.batchQueue.length > 0) {
+          queuePreviewHtml = `
+            <div style="background: rgba(0,0,0,0.3); border: 1px solid var(--border); border-radius: 8px; padding: 10px; margin-top: 6px;">
+              <span style="font-size: 0.78rem; font-weight: 600; color: var(--primary);">📋 Top Pending Items in Queue (${g.batchQueue.length}):</span>
+              <ul style="list-style: none; padding: 0; margin-top: 6px; font-size: 0.78rem;">
+                ${g.batchQueue.slice(0, 3).map((item, idx) => {
+                  const pBadge = item.priority === 'high' ? '🔴 HIGH' : (item.priority === 'low' ? '🟢 LOW' : '🟡 NORMAL');
+                  const bodyPreview = item.body ? item.body.substring(0, 35) + '...' : (item.url || 'Payload');
+                  return `<li style="display: flex; justify-content: space-between; padding: 2px 0; border-bottom: 1px solid rgba(255,255,255,0.05);">
+                    <span style="color: var(--text-muted); font-family: monospace;">#${idx + 1} ${bodyPreview}</span>
+                    <span style="font-weight: 600;">${pBadge}</span>
+                  </li>`;
+                }).join('')}
+              </ul>
+            </div>
+          `;
+        } else {
+          queuePreviewHtml = `<div style="font-size: 0.78rem; color: var(--text-muted); font-style: italic; margin-top: 4px;">Queue is currently empty (Drained)</div>`;
+        }
 
         card.innerHTML = `
           <div class="card-header">
             <span class="card-title">⏱️ ${g.name}</span>
-            <span class="card-badge badge-completed">${g.status.toUpperCase()}</span>
+            <span class="card-badge ${g.isAutoPulsing ? 'badge-completed' : 'badge-hibernating'}">${g.isAutoPulsing ? 'AUTO-PULSE ON ⚡' : 'MANUAL ⏸️'}</span>
           </div>
           <div class="card-details">
+            <div class="detail-row"><span class="detail-label">Default Endpoint:</span><span class="detail-val" style="color: var(--primary);">${targetLabel}</span></div>
             <div class="detail-row"><span class="detail-label">Cadence Metronome:</span><span class="detail-val">${cadenceLabel}</span></div>
             <div class="detail-row"><span class="detail-label">Max Burst Size:</span><span class="detail-val">${g.maxBurst || 1} items/pulse</span></div>
-            <div class="detail-row"><span class="detail-label">Adaptive 429 Backoff:</span><span class="detail-val">${g.enableAdaptiveBackoff ? 'ENABLED ⚡' : 'DISABLED'}</span></div>
-            <div class="detail-row"><span class="detail-label">Items Processed:</span><span class="detail-val">${g.processedCount}</span></div>
-            <div class="detail-row"><span class="detail-label">Remaining Queue:</span><span class="detail-val">${g.batchQueue.length} items</span></div>
+            <div class="detail-row"><span class="detail-label">Adaptive Backoff:</span><span class="detail-val">${g.enableAdaptiveBackoff ? 'ENABLED ⚡' : 'DISABLED'}</span></div>
+            <div class="detail-row"><span class="detail-label">Processed Total:</span><span class="detail-val">${g.processedCount} items</span></div>
+            ${queuePreviewHtml}
           </div>
           <div class="card-actions">
-            <button class="btn btn-sm btn-primary btn-pulse-gov" data-id="${g.id}">⚡ Pulse Metronome</button>
+            <button class="btn btn-sm btn-primary btn-push-payload" data-id="${g.id}">📥 Push Payload</button>
+            <button class="btn btn-sm btn-secondary btn-pulse-gov" data-id="${g.id}">⚡ Pulse Now</button>
+            <button class="btn btn-sm ${g.isAutoPulsing ? 'btn-danger' : 'btn-secondary'} btn-toggle-autopulse" data-id="${g.id}">${g.isAutoPulsing ? '⏸️ Stop Auto' : '▶️ Auto-Pulse'}</button>
+            <button class="btn btn-sm btn-secondary btn-snippet-gov" data-id="${g.id}">📋 Snippets</button>
             <button class="btn btn-sm btn-secondary btn-edit-gov" data-id="${g.id}">✏️ Edit</button>
             <button class="btn btn-sm btn-danger btn-del-gov" data-id="${g.id}">🗑️</button>
           </div>
@@ -1002,18 +1146,27 @@ await syncada.runTask('${task.id}');`;
         grid.appendChild(card);
       });
 
+      grid.querySelectorAll('.btn-push-payload').forEach(b => b.addEventListener('click', () => this.openPushPayloadModal(b.dataset.id)));
+      grid.querySelectorAll('.btn-snippet-gov').forEach(b => b.addEventListener('click', () => this.openSnippetModal('governor', b.dataset.id)));
+      grid.querySelectorAll('.btn-toggle-autopulse').forEach(b => b.addEventListener('click', () => this.toggleAutoPulse(b.dataset.id)));
+
       grid.querySelectorAll('.btn-pulse-gov').forEach(b => {
         b.addEventListener('click', () => {
           const g = this.state.governors[b.dataset.id];
           if (g) {
             const burst = g.maxBurst || 1;
+            let count = 0;
             for (let i = 0; i < burst; i++) {
-              g.processedCount++;
-              if (g.batchQueue.length > 0) g.batchQueue.shift();
+              if (g.batchQueue.length > 0) {
+                g.processedCount++;
+                g.batchQueue.shift();
+                count++;
+              }
             }
+            if (g.batchQueue.length === 0) g.status = 'drained';
             this.saveLocalVaultState();
             this.renderAll();
-            this.showToast(`⚡ Metronome Pulse executed for "${g.name}" (${burst} items burst).`, 'success');
+            this.showToast(`⚡ Metronome Pulse executed for "${g.name}" (${count} items burst). Remaining: ${g.batchQueue.length}`, 'success');
           }
         });
       });
