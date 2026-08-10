@@ -204,43 +204,123 @@
           <p class="guide-desc">Send signals from microservices, Docker containers, or CI/CD pipelines when a service finishes work. The barrier gate releases automatically when the required threshold or whitelist senders check in.</p>
 
           <div class="snippet-box">
-            <div class="snippet-header"><span>1. cURL / Webhook HTTP POST</span><button class="btn btn-sm btn-secondary copy-snippet-btn" data-target="code-barrier-curl">📋 Copy</button></div>
-            <pre><code id="code-barrier-curl">curl -X POST "https://api.github.com/repos/YOUR_OWNER/YOUR_REPO/dispatches" \
-  -H "Authorization: token ghp_YOUR_TOKEN" \
-  -H "Accept: application/vnd.github.v3+json" \
-  -d '{"event_type":"syncada_barrier_signal","client_payload":{"barrierKey":"gate-deploy-v1","sender":"auth-service","payload":{"status":"READY"}}}'</code></pre>
-          </div>
-
-          <div class="snippet-box">
-            <div class="snippet-header"><span>2. Syncada CLI Command</span><button class="btn btn-sm btn-secondary copy-snippet-btn" data-target="code-barrier-cli">📋 Copy</button></div>
-            <pre><code id="code-barrier-cli">syncada barrier signal "gate-deploy-v1" --sender "auth-service" --payload '{"status":"READY"}'</code></pre>
-          </div>
-
-          <div class="snippet-box">
-            <div class="snippet-header"><span>3. Node.js / TypeScript SDK</span><button class="btn btn-sm btn-secondary copy-snippet-btn" data-target="code-barrier-sdk">📋 Copy</button></div>
+            <div class="snippet-header"><span>1. Node.js / TypeScript SDK</span><button class="btn btn-sm btn-secondary copy-snippet-btn" data-target="code-barrier-sdk">📋 Copy Node.js</button></div>
             <pre><code id="code-barrier-sdk">import { Syncada } from 'terra-syncada';
 const syncada = new Syncada({ githubToken: process.env.GITHUB_TOKEN });
 
-// Signal barrier when service completes migration
-await syncada.barrier.signalBarrier(barrier, 'auth-service', { authVersion: 'v2.1' });</code></pre>
+// Signal barrier gate when microservice migration completes
+await syncada.barrier.signalBarrier('gate-prod-deploy', 'auth-service', { status: 'MIGRATIONS_COMPLETE' });</code></pre>
+          </div>
+
+          <div class="snippet-box">
+            <div class="snippet-header"><span>2. Python Script</span><button class="btn btn-sm btn-secondary copy-snippet-btn" data-target="code-barrier-py">📋 Copy Python</button></div>
+            <pre><code id="code-barrier-py">import requests, os
+url = "https://api.github.com/repos/YOUR_OWNER/.syncada-storage/dispatches"
+headers = {"Authorization": f"token {os.getenv('GITHUB_TOKEN')}", "Accept": "application/vnd.github.v3+json"}
+data = {
+    "event_type": "syncada_barrier_signal",
+    "client_payload": {
+        "barrierKey": "gate-prod-deploy",
+        "sender": "auth-service",
+        "payload": {"status": "MIGRATIONS_COMPLETE"}
+    }
+}
+requests.post(url, headers=headers, json=data)</code></pre>
+          </div>
+
+          <div class="snippet-box">
+            <div class="snippet-header"><span>3. cURL / Webhook HTTP POST</span><button class="btn btn-sm btn-secondary copy-snippet-btn" data-target="code-barrier-curl">📋 Copy cURL</button></div>
+            <pre><code id="code-barrier-curl">curl -X POST "https://api.github.com/repos/YOUR_OWNER/.syncada-storage/dispatches" \
+  -H "Authorization: token ghp_YOUR_TOKEN" \
+  -H "Accept: application/vnd.github.v3+json" \
+  -d '{"event_type":"syncada_barrier_signal","client_payload":{"barrierKey":"gate-prod-deploy","sender":"auth-service","payload":{"status":"MIGRATIONS_COMPLETE"}}}'</code></pre>
+          </div>
+
+          <div class="snippet-box">
+            <div class="snippet-header"><span>4. Syncada CLI Command</span><button class="btn btn-sm btn-secondary copy-snippet-btn" data-target="code-barrier-cli">📋 Copy CLI</button></div>
+            <pre><code id="code-barrier-cli">syncada barrier signal "gate-prod-deploy" --sender "auth-service" --payload '{"status":"READY"}'</code></pre>
           </div>
         </div>
 
         <div id="guide-content-tasks" class="guide-section hidden">
-          <h4>🌰 How to Trigger a Nymph Task On-Demand</h4>
-          <p class="guide-desc">Trigger any Classic or Chrono Nymph Shell on-demand from your backend or terminal.</p>
+          <h4>🌰 How to Integrate & Trigger Nymph Tasks</h4>
+          <p class="guide-desc">Nymph Tasks execute $0 Serverless Runlets either on a cron schedule or on-demand from your custom microservices, scripts, or pipelines.</p>
+
           <div class="snippet-box">
-            <div class="snippet-header"><span>Syncada CLI Command</span><button class="btn btn-sm btn-secondary copy-snippet-btn" data-target="code-task-cli">📋 Copy</button></div>
+            <div class="snippet-header"><span>1. Node.js / TypeScript SDK</span><button class="btn btn-sm btn-secondary copy-snippet-btn" data-target="code-task-sdk">📋 Copy Node.js</button></div>
+            <pre><code id="code-task-sdk">import { Syncada } from 'terra-syncada';
+const syncada = new Syncada({ githubToken: process.env.GITHUB_TOKEN });
+
+// Trigger task emergence on-demand from your backend API
+const run = await syncada.runTask('task-midnight-backup');
+console.log(`Execution Completed in ${run.snapshot.durationMs}ms:`, run.snapshot.outputSnippet);</code></pre>
+          </div>
+
+          <div class="snippet-box">
+            <div class="snippet-header"><span>2. Python Script</span><button class="btn btn-sm btn-secondary copy-snippet-btn" data-target="code-task-py">📋 Copy Python</button></div>
+            <pre><code id="code-task-py">import requests, os
+url = "https://api.github.com/repos/YOUR_OWNER/.syncada-storage/dispatches"
+headers = {"Authorization": f"token {os.getenv('GITHUB_TOKEN')}", "Accept": "application/vnd.github.v3+json"}
+data = {"event_type": "syncada_task_run", "client_payload": {"taskId": "task-midnight-backup"}}
+requests.post(url, headers=headers, json=data)</code></pre>
+          </div>
+
+          <div class="snippet-box">
+            <div class="snippet-header"><span>3. cURL / Webhook HTTP POST</span><button class="btn btn-sm btn-secondary copy-snippet-btn" data-target="code-task-curl">📋 Copy cURL</button></div>
+            <pre><code id="code-task-curl">curl -X POST "https://api.github.com/repos/YOUR_OWNER/.syncada-storage/dispatches" \
+  -H "Authorization: token ghp_YOUR_TOKEN" \
+  -H "Accept: application/vnd.github.v3+json" \
+  -d '{"event_type":"syncada_task_run","client_payload":{"taskId":"task-midnight-backup"}}'</code></pre>
+          </div>
+
+          <div class="snippet-box">
+            <div class="snippet-header"><span>4. Syncada CLI Command</span><button class="btn btn-sm btn-secondary copy-snippet-btn" data-target="code-task-cli">📋 Copy CLI</button></div>
             <pre><code id="code-task-cli">syncada task run task-midnight-backup</code></pre>
           </div>
         </div>
 
         <div id="guide-content-governors" class="guide-section hidden">
-          <h4>⏱️ How to Push Items into a Rate-Pulse Governor</h4>
-          <p class="guide-desc">Enqueue targets or payloads to be paced by the metronome governor to prevent HTTP 429 rate limit bans.</p>
+          <h4>⏱️ How to Integrate Rate-Pulse Governors in Apps</h4>
+          <p class="guide-desc">Shield your application against HTTP 429 rate limit bans (OpenAI, Anthropic, payment gateways). Push items into the priority queue and let the metronome pace executions safely.</p>
+
           <div class="snippet-box">
-            <div class="snippet-header"><span>Syncada CLI Command</span><button class="btn btn-sm btn-secondary copy-snippet-btn" data-target="code-gov-cli">📋 Copy</button></div>
-            <pre><code id="code-gov-cli">syncada governor push gov-openai-metronome --payload '{"input":"Hello world"}' --priority high</code></pre>
+            <div class="snippet-header"><span>1. Node.js / TypeScript SDK</span><button class="btn btn-sm btn-secondary copy-snippet-btn" data-target="code-gov-sdk">📋 Copy Node.js</button></div>
+            <pre><code id="code-gov-sdk">import { Syncada } from 'terra-syncada';
+const syncada = new Syncada({ githubToken: process.env.GITHUB_TOKEN });
+
+// Push high-priority payload into metronome queue
+await syncada.governor.pushPayload(gov, {
+  input: "Translate customer review to Spanish"
+}, { priority: 'high' });</code></pre>
+          </div>
+
+          <div class="snippet-box">
+            <div class="snippet-header"><span>2. Python Script</span><button class="btn btn-sm btn-secondary copy-snippet-btn" data-target="code-gov-py">📋 Copy Python</button></div>
+            <pre><code id="code-gov-py">import requests, os
+url = "https://api.github.com/repos/YOUR_OWNER/.syncada-storage/dispatches"
+headers = {"Authorization": f"token {os.getenv('GITHUB_TOKEN')}", "Accept": "application/vnd.github.v3+json"}
+data = {
+    "event_type": "syncada_governor_push",
+    "client_payload": {
+        "govId": "gov-openai-metronome",
+        "payload": {"input": "Urgent prompt batch"},
+        "priority": "high"
+    }
+}
+requests.post(url, headers=headers, json=data)</code></pre>
+          </div>
+
+          <div class="snippet-box">
+            <div class="snippet-header"><span>3. cURL / Webhook HTTP POST</span><button class="btn btn-sm btn-secondary copy-snippet-btn" data-target="code-gov-curl">📋 Copy cURL</button></div>
+            <pre><code id="code-gov-curl">curl -X POST "https://api.github.com/repos/YOUR_OWNER/.syncada-storage/dispatches" \
+  -H "Authorization: token ghp_YOUR_TOKEN" \
+  -H "Accept: application/vnd.github.v3+json" \
+  -d '{"event_type":"syncada_governor_push","client_payload":{"govId":"gov-openai-metronome","payload":{"input":"Urgent prompt batch"},"priority":"high"}}'</code></pre>
+          </div>
+
+          <div class="snippet-box">
+            <div class="snippet-header"><span>4. Syncada CLI Command</span><button class="btn btn-sm btn-secondary copy-snippet-btn" data-target="code-gov-cli">📋 Copy CLI</button></div>
+            <pre><code id="code-gov-cli">syncada governor push gov-openai-metronome --payload '{"input":"Urgent prompt batch"}' --priority high</code></pre>
           </div>
         </div>
       </div>
